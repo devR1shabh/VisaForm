@@ -1,4 +1,5 @@
 import { useState } from "react";
+import axios from "axios";
 
 function ChatPage() {
 
@@ -15,24 +16,41 @@ function ChatPage() {
 
   const [input, setInput] = useState("");
 
-  const handleSend = () => {
+  const handleSend = async () => {
 
-    if (!input.trim()) return;
+  if (!input.trim()) return;
 
-    const userMessage = {
-      sender: "user",
-      text: input
-    };
+  const userMessage = {
+    sender: "user",
+    text: input
+  };
+
+  setMessages((prev) => [...prev, userMessage]);
+
+  try {
+
+    const response = await axios.post(
+      "http://localhost:5000/api/chat",
+      {
+        message: input
+      }
+    );
 
     const aiMessage = {
       sender: "ai",
-      text: "Thank you. Your response has been recorded."
+      text: response.data.reply
     };
 
-    setMessages([...messages, userMessage, aiMessage]);
+    setMessages((prev) => [...prev, aiMessage]);
 
-    setInput("");
-  };
+  } catch (error) {
+
+    console.log(error);
+
+  }
+
+  setInput("");
+};
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">

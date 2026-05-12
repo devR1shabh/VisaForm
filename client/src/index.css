@@ -1,1 +1,45 @@
 @import "tailwindcss";
+
+/* Minimal markdown styling for AI responses (no new frameworks/plugins). */
+.markdown :where(p) {
+  margin: 0.5rem 0;
+}
+.markdown :where(ul, ol) {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+}
+.markdown :where(li) {
+  margin: 0.25rem 0;
+}
+.markdown :where(a) {
+  color: rgb(15 23 42);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.markdown :where(code) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  font-size: 0.875em;
+  background: rgb(241 245 249);
+  padding: 0.15rem 0.35rem;
+  border-radius: 0.375rem;
+}
+.markdown :where(pre) {
+  margin: 0.6rem 0;
+  padding: 0.75rem;
+  border-radius: 0.75rem;
+  overflow: auto;
+  background: rgb(15 23 42);
+  color: rgb(248 250 252);
+}
+.markdown :where(pre code) {
+  background: transparent;
+  padding: 0;
+  color: inherit;
+}
+.markdown :where(blockquote) {
+  margin: 0.6rem 0;
+  padding-left: 0.9rem;
+  border-left: 3px solid rgb(226 232 240);
+  color: rgb(71 85 105);
+}

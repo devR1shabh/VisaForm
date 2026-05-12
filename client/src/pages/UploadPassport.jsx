@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 
 function UploadPassport() {
   const [image, setImage] = useState(null);
@@ -14,7 +15,7 @@ function UploadPassport() {
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
       <div className="bg-white p-10 rounded-3xl shadow-xl w-full max-w-xl">
-        
+
         <h1 className="text-4xl font-bold text-center mb-3">
           Upload Passport
         </h1>
@@ -57,8 +58,17 @@ function UploadPassport() {
               alt="Passport Preview"
               className="rounded-2xl shadow-md w-full"
             />
+
+            <Link 
+            to="/form"
+            className="block w-full text-center mt-6 bg-black text-white py-3 rounded-xl hover:bg-gray-800"
+            >
+            Extract Details
+            </Link>
+
           </div>
         )}
+
       </div>
     </div>
   );

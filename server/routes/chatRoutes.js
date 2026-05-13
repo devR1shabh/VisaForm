@@ -12,18 +12,49 @@ function getGenAI() {
   return new GoogleGenerativeAI(apiKey);
 }
 
-const GEMINI_MODEL = "gemini-1.5-flash";
-const GEMINI_RETRYABLE_STATUS = new Set([503, 429]);
-const GEMINI_MAX_ATTEMPTS = 3;
-const GEMINI_BASE_DELAY_MS = 600;
+/** Override in `.env` if a model is overloaded or unavailable for your key, e.g. `GEMINI_MODEL=gemini-flash-latest`. */
+const GEMINI_MODEL = (process.env.GEMINI_MODEL || "gemini-1.5-flash").trim();
+
+const GEMINI_RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
+
+const GEMINI_MAX_ATTEMPTS = 5;
+const GEMINI_BASE_DELAY_MS = 900;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** SDK uses `err.status` (number); fall back to parsing `[503 Service Unavailable]` from `err.message`. */
+function getHttpStatus(err) {
+  if (err == null) return undefined;
+  const direct = Number(err.status);
+  if (Number.isFinite(direct) && direct > 0) return direct;
+  const m = String(err.message || "").match(/\[(\d{3})\s/);
+  if (m) return Number(m[1]);
+  return undefined;
+}
+
+/** Content/safety errors include `response` and no HTTP status — retrying will not help. */
+function isRetryableGeminiError(err) {
+  if (err && err.response != null && getHttpStatus(err) == null) {
+    return false;
+  }
+  const status = getHttpStatus(err);
+  if (status != null && GEMINI_RETRYABLE_STATUS.has(status)) {
+    return true;
+  }
+  const msg = String(err?.message || "").toLowerCase();
+  if (msg.includes("resource exhausted") || msg.includes("too many requests")) return true;
+  if (msg.includes("try again later") || msg.includes("overloaded") || msg.includes("high demand")) {
+    return true;
+  }
+  if (msg.includes("503") || msg.includes("service unavailable")) return true;
+  return false;
+}
+
 /**
- * Retries only on transient API overload / rate limits (503, 429).
- * Other errors fail fast.
+ * Retries on transient overload / gateway / rate-limit style failures.
+ * Does not retry safety/blocked responses (those are not HTTP transport errors).
  */
 async function generateContentWithRetry(model, prompt) {
   let lastError;
@@ -41,8 +72,8 @@ async function generateContentWithRetry(model, prompt) {
       return result;
     } catch (err) {
       lastError = err;
-      const status = err?.status;
-      const retryable = GEMINI_RETRYABLE_STATUS.has(status);
+      const status = getHttpStatus(err);
+      const retryable = isRetryableGeminiError(err);
       console.log("[api/chat] gemini error", {
         model: GEMINI_MODEL,
         attempt,
@@ -55,7 +86,8 @@ async function generateContentWithRetry(model, prompt) {
         throw err;
       }
 
-      const delayMs = GEMINI_BASE_DELAY_MS * 2 ** (attempt - 1);
+      const delayMs =
+        GEMINI_BASE_DELAY_MS * 2 ** (attempt - 1) + Math.floor(Math.random() * 500);
       console.log("[api/chat] gemini retry", { delayMs, nextAttempt: attempt + 1 });
       await sleep(delayMs);
     }
@@ -119,7 +151,7 @@ ${userMessage}
 
   } catch (error) {
 
-    const status = error?.status;
+    const status = getHttpStatus(error);
     console.log("[api/chat] gemini final failure", {
       status: status ?? "unknown",
       message: error?.message,

@@ -5,6 +5,22 @@ import remarkGfm from "remark-gfm";
 
 function ChatPage() {
 
+  const questions = [
+    "Which country are you planning to visit?",
+    "What is the purpose of your visit?",
+    "How long do you plan to stay?",
+    "When are you planning to travel?"
+  ];
+
+  const [step, setStep] = useState(0);
+
+  const [applicationData, setApplicationData] = useState({
+    country: "",
+    purpose: "",
+    duration: "",
+    travelDate: ""
+  });
+
   const [messages, setMessages] = useState([
     {
       sender: "ai",
@@ -12,92 +28,164 @@ function ChatPage() {
     },
     {
       sender: "ai",
-      text: "What is the purpose of your visit?"
+      text: questions[0]
     }
   ]);
 
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+
   const endRef = useRef(null);
 
   const markdownPlugins = useMemo(() => [remarkGfm], []);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    endRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "end"
+    });
   }, [messages.length, isLoading]);
 
   const handleSend = async () => {
 
-  if (isLoading) return;
-  if (!input.trim()) return;
+    if (isLoading) return;
+    if (!input.trim()) return;
 
-  const userMessage = {
-    sender: "user",
-    text: input
-  };
-
-  setMessages((prev) => [...prev, userMessage]);
-  setIsLoading(true);
-
-  try {
-
-    const response = await axios.post(
-      "http://localhost:5000/api/chat",
-      {
-        message: input
-      }
-    );
-
-    const aiMessage = {
-      sender: "ai",
-      text: response.data.reply
+    const userMessage = {
+      sender: "user",
+      text: input
     };
 
-    setMessages((prev) => [...prev, aiMessage]);
+    setMessages((prev) => [...prev, userMessage]);
 
-  } catch (error) {
+    if (step === 0) {
+      setApplicationData((prev) => ({
+        ...prev,
+        country: input
+      }));
+    }
 
-    console.log(error);
-    setMessages((prev) => [
-      ...prev,
-      {
+    if (step === 1) {
+      setApplicationData((prev) => ({
+        ...prev,
+        purpose: input
+      }));
+    }
+
+    if (step === 2) {
+      setApplicationData((prev) => ({
+        ...prev,
+        duration: input
+      }));
+    }
+
+    if (step === 3) {
+      setApplicationData((prev) => ({
+        ...prev,
+        travelDate: input
+      }));
+    }
+
+    setIsLoading(true);
+
+    try {
+
+      const response = await axios.post(
+        "http://localhost:5000/api/chat",
+        {
+          message: input
+        }
+      );
+
+      const aiMessage = {
         sender: "ai",
-        text: "Sorry — I couldn't get a response right now. Please try again."
+        text: response.data.reply
+      };
+
+      setMessages((prev) => [...prev, aiMessage]);
+
+      if (step < questions.length - 1) {
+
+        const nextStep = step + 1;
+
+        setStep(nextStep);
+
+        setMessages((prev) => [
+          ...prev,
+          {
+            sender: "ai",
+            text: questions[nextStep]
+          }
+        ]);
       }
-    ]);
 
-  } finally {
-    setIsLoading(false);
-  }
+    } catch (error) {
 
-  setInput("");
-};
+      console.log(error);
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: "ai",
+          text: "Sorry — I couldn't get a response right now. Please try again."
+        }
+      ]);
+
+    } finally {
+
+      setIsLoading(false);
+
+    }
+
+    setInput("");
+
+  };
+
+  console.log(applicationData);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 flex flex-col">
 
       <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur">
+
         <div className="mx-auto w-full max-w-4xl px-4 py-4 flex items-center justify-between">
+
           <div>
-            <div className="text-lg font-semibold text-slate-900">AI Visa Assistant</div>
-            <div className="text-sm text-slate-500">Ask questions and get step-by-step guidance</div>
+            <div className="text-lg font-semibold text-slate-900">
+              AI Visa Assistant
+            </div>
+
+            <div className="text-sm text-slate-500">
+              Ask questions and get step-by-step guidance
+            </div>
           </div>
+
           <div className="text-xs text-slate-500 hidden sm:block">
             {isLoading ? "Thinking…" : "Ready"}
           </div>
+
         </div>
+
       </div>
 
       <div className="flex-1 overflow-y-auto">
+
         <div className="mx-auto w-full max-w-4xl px-4 py-6 space-y-3">
 
           {messages.map((msg, index) => {
+
             const isUser = msg.sender === "user";
+
             return (
               <div
                 key={index}
-                className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+                className={`flex ${
+                  isUser
+                    ? "justify-end"
+                    : "justify-start"
+                }`}
               >
+
                 <div
                   className={[
                     "max-w-[85%] sm:max-w-[70%] rounded-2xl px-4 py-3 shadow-sm border",
@@ -106,60 +194,86 @@ function ChatPage() {
                       : "bg-white text-slate-900 border-slate-200"
                   ].join(" ")}
                 >
+
                   {isUser ? (
-                    <div className="whitespace-pre-wrap break-words">{msg.text}</div>
+
+                    <div className="whitespace-pre-wrap break-words">
+                      {msg.text}
+                    </div>
+
                   ) : (
+
                     <div className="markdown text-sm leading-relaxed">
+
                       <ReactMarkdown remarkPlugins={markdownPlugins}>
                         {msg.text}
                       </ReactMarkdown>
+
                     </div>
+
                   )}
+
                 </div>
+
               </div>
             );
+
           })}
 
           {isLoading && (
+
             <div className="flex justify-start">
+
               <div className="max-w-[85%] sm:max-w-[70%] rounded-2xl px-4 py-3 shadow-sm border bg-white text-slate-900 border-slate-200">
+
                 <div className="flex items-center gap-2 text-sm text-slate-600">
+
                   <span className="inline-block h-2 w-2 rounded-full bg-slate-400 animate-pulse" />
+
                   <span>Thinking…</span>
+
                 </div>
+
               </div>
+
             </div>
+
           )}
 
           <div ref={endRef} />
 
         </div>
+
       </div>
 
       <div className="border-t border-slate-200 bg-white">
+
         <div className="mx-auto w-full max-w-4xl px-4 py-4 flex gap-3">
 
-        <input
-          type="text"
-          placeholder="Type your message..."
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") handleSend();
-          }}
-          className="flex-1 border border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-900/15 focus:border-slate-400 disabled:bg-slate-50"
-          disabled={isLoading}
-        />
+          <input
+            type="text"
+            placeholder="Type your message..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                handleSend();
+              }
+            }}
+            disabled={isLoading}
+            className="flex-1 border border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-900/15 focus:border-slate-400 disabled:bg-slate-50"
+          />
 
-        <button
-          onClick={handleSend}
-          disabled={isLoading || !input.trim()}
-          className="bg-slate-900 text-white px-5 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-800 transition-colors"
-        >
-          {isLoading ? "Sending…" : "Send"}
-        </button>
+          <button
+            onClick={handleSend}
+            disabled={isLoading || !input.trim()}
+            className="bg-slate-900 text-white px-5 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-800 transition-colors"
+          >
+            {isLoading ? "Sending…" : "Send"}
+          </button>
 
         </div>
+
       </div>
 
     </div>

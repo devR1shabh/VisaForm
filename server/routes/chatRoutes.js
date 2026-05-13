@@ -2,29 +2,19 @@ const express = require("express");
 
 const router = express.Router();
 
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-
-function getGenAI() {
+function getGeminiApiKey() {
   const apiKey = (process.env.GEMINI_API_KEY || "").trim();
   if (!apiKey) {
     throw new Error("Missing GEMINI_API_KEY. Check server/.env and dotenv loading order.");
   }
-  return new GoogleGenerativeAI(apiKey);
+  return apiKey;
 }
 
-/** Override in `.env` if a model is overloaded or unavailable for your key, e.g. `GEMINI_MODEL=gemini-flash-latest`. */
-const GEMINI_MODEL = (process.env.GEMINI_MODEL || "gemini-1.5-flash").trim();
+/** Override in `.env` only if Google lists another model for your API key. */
+const GEMINI_MODEL = (process.env.GEMINI_MODEL || "gemini-2.5-flash").trim();
+const GEMINI_API_VERSION = (process.env.GEMINI_API_VERSION || "v1beta").trim();
+const GEMINI_API_BASE_URL = "https://generativelanguage.googleapis.com";
 
-const GEMINI_RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
-
-const GEMINI_MAX_ATTEMPTS = 5;
-const GEMINI_BASE_DELAY_MS = 900;
-
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/** SDK uses `err.status` (number); fall back to parsing `[503 Service Unavailable]` from `err.message`. */
 function getHttpStatus(err) {
   if (err == null) return undefined;
   const direct = Number(err.status);
@@ -34,78 +24,58 @@ function getHttpStatus(err) {
   return undefined;
 }
 
-/** Content/safety errors include `response` and no HTTP status — retrying will not help. */
-function isRetryableGeminiError(err) {
-  if (err && err.response != null && getHttpStatus(err) == null) {
-    return false;
+async function generateGeminiText(prompt) {
+  const modelName = GEMINI_MODEL.replace(/^models\//, "");
+  const url = `${GEMINI_API_BASE_URL}/${GEMINI_API_VERSION}/models/${modelName}:generateContent`;
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": getGeminiApiKey(),
+    },
+    body: JSON.stringify({
+      contents: [
+        {
+          role: "user",
+          parts: [{ text: prompt }],
+        },
+      ],
+      generationConfig: {
+        temperature: 0.4,
+        maxOutputTokens: 80,
+        thinkingConfig: {
+          thinkingBudget: 0,
+        },
+      },
+    }),
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const message =
+      data?.error?.message || `${response.status} ${response.statusText || "Gemini request failed"}`;
+    const error = new Error(message);
+    error.status = response.status;
+    throw error;
   }
-  const status = getHttpStatus(err);
-  if (status != null && GEMINI_RETRYABLE_STATUS.has(status)) {
-    return true;
+
+  const text = data?.candidates?.[0]?.content?.parts
+    ?.map((part) => part.text || "")
+    .join("")
+    .trim();
+
+  if (!text) {
+    throw new Error("Gemini returned an empty response.");
   }
-  const msg = String(err?.message || "").toLowerCase();
-  if (msg.includes("resource exhausted") || msg.includes("too many requests")) return true;
-  if (msg.includes("try again later") || msg.includes("overloaded") || msg.includes("high demand")) {
-    return true;
-  }
-  if (msg.includes("503") || msg.includes("service unavailable")) return true;
-  return false;
+
+  return text;
 }
-
-/**
- * Retries on transient overload / gateway / rate-limit style failures.
- * Does not retry safety/blocked responses (those are not HTTP transport errors).
- */
-async function generateContentWithRetry(model, prompt) {
-  let lastError;
-  for (let attempt = 1; attempt <= GEMINI_MAX_ATTEMPTS; attempt++) {
-    const started = Date.now();
-    try {
-      const result = await model.generateContent(prompt);
-      if (attempt > 1) {
-        console.log("[api/chat] gemini ok after retry", {
-          model: GEMINI_MODEL,
-          attempt,
-          elapsedMs: Date.now() - started,
-        });
-      }
-      return result;
-    } catch (err) {
-      lastError = err;
-      const status = getHttpStatus(err);
-      const retryable = isRetryableGeminiError(err);
-      console.log("[api/chat] gemini error", {
-        model: GEMINI_MODEL,
-        attempt,
-        status: status ?? "unknown",
-        retryable,
-        message: err?.message,
-      });
-
-      if (!retryable || attempt === GEMINI_MAX_ATTEMPTS) {
-        throw err;
-      }
-
-      const delayMs =
-        GEMINI_BASE_DELAY_MS * 2 ** (attempt - 1) + Math.floor(Math.random() * 500);
-      console.log("[api/chat] gemini retry", { delayMs, nextAttempt: attempt + 1 });
-      await sleep(delayMs);
-    }
-  }
-  throw lastError;
-}
-
 
 router.post("/", async (req, res) => {
-
   try {
-
     const userMessage = req.body.message;
-
-    const genAI = getGenAI();
-    const model = genAI.getGenerativeModel({
-      model: GEMINI_MODEL,
-    });
 
     const prompt = `
 You are an AI Visa Assistant.
@@ -136,20 +106,17 @@ ${userMessage}
 
     console.log("[api/chat] request", {
       model: GEMINI_MODEL,
+      apiVersion: GEMINI_API_VERSION,
       messageLen: typeof userMessage === "string" ? userMessage.length : 0,
     });
 
-    const result = await generateContentWithRetry(model, prompt);
-
-    const response = await result.response;
-
-    const text = response.text();
+    const text = await generateGeminiText(prompt);
 
     res.json({
-      reply: text
+      reply: text,
     });
-
   } catch (error) {
+    console.log("FULL ERROR:", error);
 
     const status = getHttpStatus(error);
     console.log("[api/chat] gemini final failure", {
@@ -158,11 +125,9 @@ ${userMessage}
     });
 
     res.status(500).json({
-      reply: "Something went wrong."
+      reply: "AI service is temporarily busy. Please try again in a few seconds.",
     });
-
   }
-
 });
 
 module.exports = router;

@@ -102,26 +102,58 @@ function ChatPage() {
         text: response.data.reply
       };
 
-      setMessages((prev) => [...prev, aiMessage]);
+    
 
       if (step < questions.length - 1) {
 
-        const nextStep = step + 1;
+  const nextStep = step + 1;
 
-        setStep(nextStep);
+  setStep(nextStep);
 
-        setMessages((prev) => [
-          ...prev,
-          {
-            sender: "ai",
-            text: questions[nextStep]
-          }
-        ]);
-      }
+  setMessages((prev) => [
+    ...prev,
+    aiMessage,
+    {
+      sender: "ai",
+      text: questions[nextStep]
+    }
+  ]);
+
+} else {
+
+  const updatedData = {
+    ...applicationData,
+    travelDate: input
+  };
+
+  const summaryMessage = {
+    sender: "ai",
+    text: `
+# Visa Application Summary
+
+- **Destination Country:** ${updatedData.country}
+- **Purpose of Visit:** ${updatedData.purpose}
+- **Duration of Stay:** ${updatedData.duration}
+- **Travel Date:** ${updatedData.travelDate}
+
+Your visa application details have been recorded successfully.
+`
+  };
+
+  setMessages((prev) => [
+    ...prev,
+    aiMessage,
+    summaryMessage
+  ]);
+}
 
     } catch (error) {
 
-      console.log(error);
+      console.error("[chat] request failed", {
+        message: error?.message,
+        status: error?.response?.status,
+        data: error?.response?.data,
+      });
 
       setMessages((prev) => [
         ...prev,

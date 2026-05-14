@@ -5,6 +5,7 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 
 const chatRoutes = require("./routes/chatRoutes");
+const pdfRoutes = require("./routes/pdfRoutes");
 
 mongoose.connect(process.env.MONGO_URI)
 .then(() => {
@@ -20,6 +21,7 @@ app.use(cors());
 app.use(express.json());
 
 app.use("/api/chat", chatRoutes);
+app.use("/api/pdf", pdfRoutes);
 
 app.get("/", (req, res) => {
   res.send("Visa Assistant Backend Running");

@@ -78,7 +78,6 @@ const steps = [
   { key: "additionalNotes", question: "Any additional notes for this application? Type no if there are none." },
 ];
 
-const quickReplies = ["Tourism", "Work", "Study", "Business"];
 const CHAT_DEBUG_STORAGE_KEY = "visaAssistantDebug";
 
 function debugChatWorkflow(label, details = {}) {
@@ -749,22 +748,6 @@ function ChatPage() {
 
           <div className="border-t border-slate-200/80 bg-white/90 px-4 py-4 sm:px-6">
             <div className="mx-auto max-w-5xl">
-              {!isComplete && (
-                <div className="mb-3 flex flex-wrap gap-2">
-                  {quickReplies.map((reply) => (
-                    <button
-                      key={reply}
-                      type="button"
-                      onClick={() => handleSend(reply)}
-                      disabled={disableInput}
-                      className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {reply}
-                    </button>
-                  ))}
-                </div>
-              )}
-
               {isListening && (
                 <div className="mb-3 flex items-center gap-3 rounded-2xl bg-indigo-50 px-4 py-3 text-sm text-indigo-700">
                   <span className="relative flex h-3 w-3">

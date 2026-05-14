@@ -58,33 +58,28 @@ function ChatPage() {
 
     setMessages((prev) => [...prev, userMessage]);
 
+    // FIXED STATE UPDATE
+    const updatedApplicationData = {
+      ...applicationData
+    };
+
     if (step === 0) {
-      setApplicationData((prev) => ({
-        ...prev,
-        country: input
-      }));
+      updatedApplicationData.country = input;
     }
 
     if (step === 1) {
-      setApplicationData((prev) => ({
-        ...prev,
-        purpose: input
-      }));
+      updatedApplicationData.purpose = input;
     }
 
     if (step === 2) {
-      setApplicationData((prev) => ({
-        ...prev,
-        duration: input
-      }));
+      updatedApplicationData.duration = input;
     }
 
     if (step === 3) {
-      setApplicationData((prev) => ({
-        ...prev,
-        travelDate: input
-      }));
+      updatedApplicationData.travelDate = input;
     }
+
+    setApplicationData(updatedApplicationData);
 
     setIsLoading(true);
 
@@ -94,7 +89,7 @@ function ChatPage() {
         "http://localhost:5000/api/chat",
         {
           message: input,
-          applicationData
+          applicationData: updatedApplicationData
         }
       );
 
@@ -103,50 +98,46 @@ function ChatPage() {
         text: response.data.reply
       };
 
-    
-
       if (step < questions.length - 1) {
 
-  const nextStep = step + 1;
+        const nextStep = step + 1;
 
-  setStep(nextStep);
+        setStep(nextStep);
 
-  setMessages((prev) => [
-    ...prev,
-    aiMessage,
-    {
-      sender: "ai",
-      text: questions[nextStep]
-    }
-  ]);
+        setMessages((prev) => [
+          ...prev,
+          aiMessage,
+          {
+            sender: "ai",
+            text: questions[nextStep]
+          }
+        ]);
 
-} else {
+      } else {
 
-  const updatedData = {
-    ...applicationData,
-    travelDate: input
-  };
-
-  const summaryMessage = {
-    sender: "ai",
-    text: `
+        const summaryMessage = {
+          sender: "ai",
+          text: `
 # Visa Application Summary
 
-- **Destination Country:** ${updatedData.country}
-- **Purpose of Visit:** ${updatedData.purpose}
-- **Duration of Stay:** ${updatedData.duration}
-- **Travel Date:** ${updatedData.travelDate}
+- **Destination Country:** ${updatedApplicationData.country}
+
+- **Purpose of Visit:** ${updatedApplicationData.purpose}
+
+- **Duration of Stay:** ${updatedApplicationData.duration}
+
+- **Travel Date:** ${updatedApplicationData.travelDate}
 
 Your visa application details have been recorded successfully.
 `
-  };
+        };
 
-  setMessages((prev) => [
-    ...prev,
-    aiMessage,
-    summaryMessage
-  ]);
-}
+        setMessages((prev) => [
+          ...prev,
+          aiMessage,
+          summaryMessage
+        ]);
+      }
 
     } catch (error) {
 
@@ -174,8 +165,6 @@ Your visa application details have been recorded successfully.
 
   };
 
-  console.log(applicationData);
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 flex flex-col">
 
@@ -184,6 +173,7 @@ Your visa application details have been recorded successfully.
         <div className="mx-auto w-full max-w-4xl px-4 py-4 flex items-center justify-between">
 
           <div>
+
             <div className="text-lg font-semibold text-slate-900">
               AI Visa Assistant
             </div>
@@ -191,6 +181,7 @@ Your visa application details have been recorded successfully.
             <div className="text-sm text-slate-500">
               Ask questions and get step-by-step guidance
             </div>
+
           </div>
 
           <div className="text-xs text-slate-500 hidden sm:block">
@@ -210,6 +201,7 @@ Your visa application details have been recorded successfully.
             const isUser = msg.sender === "user";
 
             return (
+
               <div
                 key={index}
                 className={`flex ${
@@ -249,6 +241,7 @@ Your visa application details have been recorded successfully.
                 </div>
 
               </div>
+
             );
 
           })}

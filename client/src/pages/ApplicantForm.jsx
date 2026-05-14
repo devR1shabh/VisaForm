@@ -1,5 +1,10 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import {
+  cleanupField,
+  isValidHtmlDate,
+  normalizePassportDetails,
+} from "../utils/formatters";
 
 function ApplicantForm() {
   const location = useLocation();
@@ -11,11 +16,13 @@ function ApplicantForm() {
     name: passportData.name || passportData.fullName || "",
     passportNumber: passportData.passportNumber || "",
     nationality: passportData.nationality || "",
-    sex: passportData.sex || "",
+    sex: "",
     dateOfBirth: passportData.dateOfBirth || "",
   });
+  const [error, setError] = useState("");
 
   const handleChange = (e) => {
+    setError("");
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
@@ -23,9 +30,25 @@ function ApplicantForm() {
   };
 
   const handleContinue = () => {
+    const cleanedFormData = {
+      ...formData,
+      name: cleanupField(formData.name),
+      passportNumber: cleanupField(formData.passportNumber),
+      nationality: cleanupField(formData.nationality),
+      dateOfBirth: cleanupField(formData.dateOfBirth),
+    };
+
+    if (
+      cleanedFormData.dateOfBirth &&
+      !isValidHtmlDate(cleanedFormData.dateOfBirth)
+    ) {
+      setError("Please enter a valid date of birth before continuing.");
+      return;
+    }
+
     navigate("/chat", {
       state: {
-        passportData: formData,
+        passportData: normalizePassportDetails(cleanedFormData),
       },
     });
   };
@@ -45,6 +68,12 @@ function ApplicantForm() {
         {extractionError && (
           <p className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
             {extractionError}
+          </p>
+        )}
+
+        {error && (
+          <p className="mb-6 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {error}
           </p>
         )}
 
@@ -106,7 +135,7 @@ function ApplicantForm() {
               onChange={handleChange}
               className="w-full border border-gray-300 rounded-xl p-3"
             >
-              <option value="">Select</option>
+              <option value="">Select Sex</option>
               <option value="Male">Male</option>
               <option value="Female">Female</option>
             </select>

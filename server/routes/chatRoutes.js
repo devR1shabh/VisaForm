@@ -1,41 +1,27 @@
 const express = require("express");
 const VisaApplication = require("../models/VisaApplication");
+const {
+  formatDate,
+  normalizeApplicationData,
+} = require("../utils/formatters");
 
 const router = express.Router();
 
 function toVisaApplicationPayload(applicationData = {}) {
-  const passportDetails = applicationData.passportDetails || {};
-  const visaDetails = applicationData.visaDetails || applicationData;
+  const normalizedApplicationData = normalizeApplicationData(applicationData);
+  const { passportDetails, visaDetails, submittedAt } =
+    normalizedApplicationData;
 
   return {
-    destinationCountry:
-      visaDetails.destinationCountry || applicationData.country || "",
-    visaType: visaDetails.visaType || applicationData.visaType || "",
-    purposeOfVisit:
-      visaDetails.travelPurpose ||
-      visaDetails.purposeOfVisit ||
-      applicationData.purpose ||
-      "",
-    durationOfStay:
-      visaDetails.duration ||
-      visaDetails.durationOfStay ||
-      applicationData.duration ||
-      "",
-    travelDate: visaDetails.travelDate || applicationData.travelDate || "",
-    accommodationDetails:
-      visaDetails.accommodationDetails ||
-      applicationData.accommodationDetails ||
-      "",
-    additionalNotes:
-      visaDetails.additionalNotes || applicationData.additionalNotes || "",
-    passportDetails: {
-      name: passportDetails.name || passportDetails.fullName || "",
-      passportNumber: passportDetails.passportNumber || "",
-      nationality: passportDetails.nationality || "",
-      sex: passportDetails.sex || "",
-      dateOfBirth: passportDetails.dateOfBirth || "",
-    },
-    submittedAt: new Date(),
+    destinationCountry: visaDetails.destinationCountry,
+    visaType: visaDetails.visaType,
+    purposeOfVisit: visaDetails.travelPurpose,
+    durationOfStay: visaDetails.duration,
+    travelDate: visaDetails.travelDate,
+    accommodationDetails: visaDetails.accommodationDetails,
+    additionalNotes: visaDetails.additionalNotes,
+    passportDetails,
+    submittedAt: new Date(submittedAt),
   };
 }
 
@@ -162,6 +148,8 @@ Rules:
 - DO NOT ask follow-up questions.
 - DO NOT generate long explanations.
 - DO NOT repeat the user's full message.
+- Use clean capitalization for countries, names, and visa types.
+- Format any YYYY-MM-DD dates as ${formatDate("2026-05-14")}.
 - Sound natural and professional.
 
 Examples:

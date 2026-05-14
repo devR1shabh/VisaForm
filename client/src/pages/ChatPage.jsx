@@ -3,6 +3,16 @@ import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import {
+  cleanupField,
+  formatDate,
+  formatDetected,
+  isValidHtmlDate,
+  normalizeApplicationData,
+  normalizePassportDetails,
+  normalizeVisaDetails,
+  safeFallback,
+} from "../utils/formatters";
 
 const STORAGE_KEY = "visaAssistantDraft";
 
@@ -11,6 +21,7 @@ const initialVisaDetails = {
   visaType: "",
   travelPurpose: "",
   duration: "",
+  travelDate: "",
   accommodationDetails: "",
   additionalNotes: "",
 };
@@ -39,6 +50,10 @@ const steps = [
   {
     key: "duration",
     question: "How long do you plan to stay?",
+  },
+  {
+    key: "travelDate",
+    question: "What is your planned travel date? Use YYYY-MM-DD if known, or type not sure.",
   },
   {
     key: "passportUpload",
@@ -87,17 +102,20 @@ function hasPassportDetails(passportDetails) {
 }
 
 function formatPassportSummary(passportDetails) {
+  const normalizedPassportDetails = normalizePassportDetails(passportDetails);
+
   return [
-    `- **Name:** ${passportDetails.name || "Not detected"}`,
-    `- **Passport Number:** ${passportDetails.passportNumber || "Not detected"}`,
-    `- **Nationality:** ${passportDetails.nationality || "Not detected"}`,
-    `- **Sex:** ${passportDetails.sex || "Not detected"}`,
-    `- **Date of Birth:** ${passportDetails.dateOfBirth || "Not detected"}`,
+    `- **Name:** ${formatDetected(normalizedPassportDetails.name)}`,
+    `- **Passport Number:** ${formatDetected(normalizedPassportDetails.passportNumber)}`,
+    `- **Nationality:** ${formatDetected(normalizedPassportDetails.nationality)}`,
+    `- **Sex:** ${formatDetected(normalizedPassportDetails.sex)}`,
+    `- **Date of Birth:** ${normalizedPassportDetails.dateOfBirth ? formatDate(normalizedPassportDetails.dateOfBirth) : "Not detected"}`,
   ].join("\n");
 }
 
 function buildApplicationSummary(applicationData) {
-  const { visaDetails, passportDetails, submittedAt } = applicationData;
+  const normalizedApplicationData = normalizeApplicationData(applicationData);
+  const { visaDetails, passportDetails, submittedAt } = normalizedApplicationData;
 
   return `
 # Visa Application Summary
@@ -106,13 +124,14 @@ function buildApplicationSummary(applicationData) {
 ${formatPassportSummary(passportDetails)}
 
 ## Visa Details
-- **Destination Country:** ${visaDetails.destinationCountry || "Not provided"}
-- **Visa Type:** ${visaDetails.visaType || "Not provided"}
-- **Travel Purpose:** ${visaDetails.travelPurpose || "Not provided"}
-- **Duration of Stay:** ${visaDetails.duration || "Not provided"}
-- **Accommodation Details:** ${visaDetails.accommodationDetails || "Not provided"}
-- **Additional Notes:** ${visaDetails.additionalNotes || "Not provided"}
-- **Submitted At:** ${submittedAt || "Pending"}
+- **Destination Country:** ${safeFallback(visaDetails.destinationCountry)}
+- **Visa Type:** ${safeFallback(visaDetails.visaType)}
+- **Travel Purpose:** ${safeFallback(visaDetails.travelPurpose)}
+- **Duration of Stay:** ${safeFallback(visaDetails.duration)}
+- **Travel Date:** ${formatDate(visaDetails.travelDate)}
+- **Accommodation Details:** ${safeFallback(visaDetails.accommodationDetails)}
+- **Additional Notes:** ${safeFallback(visaDetails.additionalNotes)}
+- **Submitted At:** ${formatDate(String(submittedAt).slice(0, 10))}
 `;
 }
 
@@ -195,12 +214,21 @@ function ChatPage() {
   };
 
   const getAcknowledgement = async (message, nextVisaDetails) => {
+    const normalizedVisaDetails = normalizeVisaDetails(nextVisaDetails);
+    const normalizedPassportDetails = normalizePassportDetails(passportDetails);
+    const currentKey = steps[stepIndex]?.key;
+    const normalizedFieldValue = normalizedVisaDetails[currentKey] || message;
+    const displayValue =
+      currentKey === "travelDate"
+        ? formatDate(normalizedVisaDetails.travelDate)
+        : cleanupField(normalizedFieldValue);
+
     try {
       const response = await axios.post("http://localhost:5000/api/chat", {
-        message,
+        message: displayValue,
         applicationData: {
-          visaDetails: nextVisaDetails,
-          passportDetails,
+          visaDetails: normalizedVisaDetails,
+          passportDetails: normalizedPassportDetails,
         },
       });
 
@@ -211,11 +239,11 @@ function ChatPage() {
   };
 
   const completeApplication = async (nextVisaDetails, nextPassportDetails) => {
-    const applicationData = {
+    const applicationData = normalizeApplicationData({
       visaDetails: nextVisaDetails,
       passportDetails: nextPassportDetails,
       submittedAt: new Date().toISOString(),
-    };
+    });
 
     setIsSaving(true);
     setStatusMessage("Saving application...");
@@ -238,7 +266,7 @@ function ChatPage() {
         `${buildApplicationSummary({
           ...applicationData,
           submittedAt,
-        })}\n\nYour application has been saved. You can now download the PDF.`
+        })}\n\nVisa application submitted successfully. You can now download the PDF.`
       );
     } catch {
       setErrorMessage(
@@ -315,6 +343,18 @@ function ChatPage() {
 
     if (!currentStep) return;
 
+    if (currentStep.key === "travelDate") {
+      const dateValue = trimmedInput.toLowerCase();
+      const isUnknownDate = ["not sure", "unknown", "no", "n/a", "na"].includes(dateValue);
+
+      if (!isUnknownDate && !isValidHtmlDate(trimmedInput)) {
+        appendAssistantMessage(
+          "Please enter the travel date as YYYY-MM-DD, or type not sure."
+        );
+        return;
+      }
+    }
+
     setIsThinking(true);
 
     try {
@@ -325,7 +365,11 @@ function ChatPage() {
 
       const nextVisaDetails = {
         ...visaDetails,
-        [currentStep.key]: trimmedInput,
+        [currentStep.key]:
+          currentStep.key === "travelDate" &&
+          ["not sure", "unknown", "no", "n/a", "na"].includes(trimmedInput.toLowerCase())
+            ? ""
+            : trimmedInput,
       };
 
       setVisaDetails(nextVisaDetails);
@@ -354,13 +398,28 @@ function ChatPage() {
     setErrorMessage("");
 
     try {
+      const normalizedApplicationData = normalizeApplicationData({
+        visaDetails,
+        passportDetails,
+        submittedAt: new Date().toISOString(),
+      });
+
+      if (
+        !normalizedApplicationData.visaDetails.destinationCountry ||
+        !normalizedApplicationData.visaDetails.visaType ||
+        !normalizedApplicationData.visaDetails.travelPurpose ||
+        !normalizedApplicationData.visaDetails.duration
+      ) {
+        setErrorMessage(
+          "Please complete the required visa details before generating the PDF."
+        );
+        setStatusMessage("");
+        return;
+      }
+
       const response = await axios.post(
         "http://localhost:5000/api/pdf/generate-pdf",
-        {
-          visaDetails,
-          passportDetails,
-          submittedAt: new Date().toISOString(),
-        },
+        normalizedApplicationData,
         {
           responseType: "blob",
         }
@@ -379,7 +438,7 @@ function ChatPage() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(pdfUrl);
-      setStatusMessage("PDF generated successfully.");
+      setStatusMessage("Visa application submitted and PDF generated successfully.");
     } catch {
       setErrorMessage("Could not generate the PDF. Please try again.");
       setStatusMessage("");

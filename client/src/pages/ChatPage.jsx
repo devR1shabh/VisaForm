@@ -93,7 +93,8 @@ function ChatPage() {
       const response = await axios.post(
         "http://localhost:5000/api/chat",
         {
-          message: input
+          message: input,
+          applicationData
         }
       );
 

@@ -1,4 +1,4 @@
-import { Link, NavLink } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   Bot,
@@ -81,9 +81,12 @@ export function Select({ className = "", children, ...props }) {
   );
 }
 
-export function Section({ eyebrow, title, description, children, className = "" }) {
+export function Section({ eyebrow, title, description, children, className = "", ...props }) {
   return (
-    <section className={["px-4 py-16 sm:px-6 lg:px-8", className].join(" ")}>
+    <section
+      className={["px-4 py-16 sm:px-6 lg:px-8", className].join(" ")}
+      {...props}
+    >
       <div className="mx-auto max-w-7xl">
         {(eyebrow || title || description) && (
           <motion.div
@@ -215,13 +218,13 @@ export function Navbar() {
 
         <div className="hidden items-center gap-2 md:flex">
           {navItems.map((item) => (
-            <NavLink
+            <Link
               key={item.label}
               to={item.to}
               className="rounded-full px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 hover:text-slate-950"
             >
               {item.label}
-            </NavLink>
+            </Link>
           ))}
         </div>
 
@@ -243,14 +246,14 @@ export function Navbar() {
         <div className="border-t border-slate-100 bg-white px-4 pb-4 md:hidden">
           <div className="flex flex-col gap-2">
             {navItems.map((item) => (
-              <NavLink
+              <Link
                 key={item.label}
                 to={item.to}
                 onClick={() => setOpen(false)}
                 className="rounded-2xl px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-100"
               >
                 {item.label}
-              </NavLink>
+              </Link>
             ))}
             <Button as={Link} to="/chat" onClick={() => setOpen(false)}>
               Start Application

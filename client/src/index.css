@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+html {
+  scroll-behavior: smooth;
+}
+
 /* Minimal markdown styling for AI responses (no new frameworks/plugins). */
 .markdown :where(p) {
   margin: 0.5rem 0;

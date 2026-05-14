@@ -142,12 +142,13 @@ function Home() {
         </section>
 
         <Section
+          id="features"
           eyebrow="Features"
           title="Everything needed for a polished visa workflow demo"
           description="A focused prototype experience that combines OCR, AI guidance, voice input, PDF generation, and storage."
           className="bg-white/55"
         >
-          <div id="features" className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {features.map((feature, index) => {
               const Icon = feature.icon;
 

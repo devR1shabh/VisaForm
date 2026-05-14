@@ -79,6 +79,13 @@ const steps = [
 ];
 
 const quickReplies = ["Tourism", "Work", "Study", "Business"];
+const CHAT_DEBUG_STORAGE_KEY = "visaAssistantDebug";
+
+function debugChatWorkflow(label, details = {}) {
+  if (sessionStorage.getItem(CHAT_DEBUG_STORAGE_KEY) === "true") {
+    console.debug(`[chat-workflow] ${label}`, details);
+  }
+}
 
 function timestamp() {
   return new Date().toLocaleTimeString([], {
@@ -98,6 +105,9 @@ function createMessage(sender, text) {
 function loadDraft() {
   try {
     const savedDraft = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "{}");
+    const savedStepIndex = Number.isInteger(savedDraft.stepIndex)
+      ? savedDraft.stepIndex
+      : 0;
 
     return {
       visaDetails: {
@@ -108,9 +118,7 @@ function loadDraft() {
         ...emptyPassportDetails,
         ...(savedDraft.passportDetails || {}),
       },
-      stepIndex: Number.isInteger(savedDraft.stepIndex)
-        ? savedDraft.stepIndex
-        : 0,
+      stepIndex: Math.min(Math.max(savedStepIndex, 0), steps.length),
     };
   } catch {
     return {
@@ -215,7 +223,26 @@ function ChatPage() {
 
   const endRef = useRef(null);
   const recognitionRef = useRef(null);
+  const stepIndexRef = useRef(startStepIndex);
+  const visaDetailsRef = useRef(restoredDraft.visaDetails);
+  const passportDetailsRef = useRef({
+    ...restoredDraft.passportDetails,
+    ...(incomingPassportData || {}),
+  });
+  const isProcessingRef = useRef(false);
   const markdownPlugins = useMemo(() => [remarkGfm], []);
+
+  useEffect(() => {
+    stepIndexRef.current = stepIndex;
+  }, [stepIndex]);
+
+  useEffect(() => {
+    visaDetailsRef.current = visaDetails;
+  }, [visaDetails]);
+
+  useEffect(() => {
+    passportDetailsRef.current = passportDetails;
+  }, [passportDetails]);
 
   useEffect(() => {
     const draft = {
@@ -238,10 +265,45 @@ function ChatPage() {
     setMessages((prev) => [...prev, createMessage("ai", text)]);
   };
 
-  const getAcknowledgement = async (message, nextVisaDetails) => {
+  const appendAssistantMessages = (texts) => {
+    const validTexts = texts.filter((text) => String(text || "").trim());
+    if (!validTexts.length) return;
+
+    setMessages((prev) => [
+      ...prev,
+      ...validTexts.map((text) => createMessage("ai", text)),
+    ]);
+  };
+
+  const buildImmediateAcknowledgement = (message, currentStep, nextVisaDetails) => {
+    if (currentStep.key === "travelDate") {
+      const dateValue = nextVisaDetails.travelDate
+        ? formatDate(nextVisaDetails.travelDate)
+        : "not sure";
+      return `Noted. I have recorded your travel date as ${dateValue}.`;
+    }
+
+    const acknowledgements = {
+      destinationCountry: "Understood. I have recorded your destination country.",
+      visaType: "Noted. I have recorded the visa type.",
+      travelPurpose: "Thank you. I have recorded your travel purpose.",
+      duration: "Noted. I have recorded your duration of stay.",
+      accommodationDetails: "Thanks. I have recorded your accommodation details.",
+      additionalNotes: "Noted. I have recorded your additional notes.",
+    };
+
+    return acknowledgements[currentStep.key] || `Noted. I have recorded ${message}.`;
+  };
+
+  const getAcknowledgement = async (
+    message,
+    nextVisaDetails,
+    activeStepIndex,
+    nextPassportDetails
+  ) => {
     const normalizedVisaDetails = normalizeVisaDetails(nextVisaDetails);
-    const normalizedPassportDetails = normalizePassportDetails(passportDetails);
-    const currentKey = steps[stepIndex]?.key;
+    const normalizedPassportDetails = normalizePassportDetails(nextPassportDetails);
+    const currentKey = steps[activeStepIndex]?.key;
     const normalizedFieldValue = normalizedVisaDetails[currentKey] || message;
     const displayValue =
       currentKey === "travelDate"
@@ -255,11 +317,15 @@ function ChatPage() {
           visaDetails: normalizedVisaDetails,
           passportDetails: normalizedPassportDetails,
         },
-      });
+      }, { timeout: 8000 });
 
-      return response.data.reply || "Noted.";
+      const reply = response.data.reply || "Noted.";
+      debugChatWorkflow("assistant reply generated", { reply });
+      return reply;
     } catch {
-      return "Noted. I have recorded that.";
+      const fallbackReply = "Noted. I have recorded that.";
+      debugChatWorkflow("assistant reply generated", { reply: fallbackReply });
+      return fallbackReply;
     }
   };
 
@@ -308,7 +374,12 @@ function ChatPage() {
     }
   };
 
-  const moveToNextStep = async (currentStepIndex, nextVisaDetails, nextPassportDetails) => {
+  const moveToNextStep = async (
+    currentStepIndex,
+    nextVisaDetails,
+    nextPassportDetails,
+    assistantMessages = []
+  ) => {
     let nextStepIndex = currentStepIndex + 1;
 
     if (
@@ -318,31 +389,53 @@ function ChatPage() {
       nextStepIndex += 1;
     }
 
+    debugChatWorkflow("next step selected", {
+      currentStep: steps[currentStepIndex]?.key,
+      currentStepIndex,
+      nextStep: steps[nextStepIndex]?.key || "complete",
+      nextStepIndex,
+    });
+
     if (nextStepIndex >= steps.length) {
       setStepIndex(nextStepIndex);
+      appendAssistantMessages(assistantMessages);
       await completeApplication(nextVisaDetails, nextPassportDetails);
       return;
     }
 
     setStepIndex(nextStepIndex);
-    appendAssistantMessage(steps[nextStepIndex].question);
+    appendAssistantMessages([...assistantMessages, steps[nextStepIndex].question]);
   };
 
-  const handlePassportUploadChoice = async (answer) => {
+  const handlePassportUploadChoice = async (
+    answer,
+    activeStepIndex,
+    currentVisaDetails,
+    currentPassportDetails
+  ) => {
     const normalizedAnswer = answer.trim().toLowerCase();
 
     if (["yes", "y", "upload", "sure", "ok", "okay"].includes(normalizedAnswer)) {
-      appendAssistantMessage(
-        "Great. Use the upload shortcut below. After extraction, you will review and confirm the details before returning here."
+      await moveToNextStep(
+        activeStepIndex,
+        currentVisaDetails,
+        currentPassportDetails,
+        [
+          "Great. You can use the upload shortcut below now, or continue and add passport details later.",
+        ]
       );
       return;
     }
 
     if (["no", "n", "skip"].includes(normalizedAnswer)) {
-      appendAssistantMessage(
-        "No problem. You can continue and add passport details manually later if needed."
+      await moveToNextStep(
+        activeStepIndex,
+        currentVisaDetails,
+        currentPassportDetails,
+        [
+          "No problem. You can continue and add passport details manually later if needed.",
+        ]
       );
-      await moveToNextStep(stepIndex, visaDetails, passportDetails);
       return;
     }
 
@@ -352,19 +445,40 @@ function ChatPage() {
   };
 
   const handleSend = async (forcedValue) => {
-    if (isThinking || isSaving || isComplete) return;
+    if (isProcessingRef.current || isThinking || isSaving || isComplete) return;
 
     const trimmedInput = cleanupField(forcedValue || input);
     if (!trimmedInput) return;
 
-    const currentStep = steps[stepIndex];
+    const activeStepIndex = stepIndexRef.current;
+    const currentStep = steps[activeStepIndex];
+    const currentVisaDetails = visaDetailsRef.current;
+    const currentPassportDetails = passportDetailsRef.current;
+
+    debugChatWorkflow("received user input", {
+      currentStep: currentStep?.key,
+      currentStepIndex: activeStepIndex,
+      input: trimmedInput,
+    });
 
     setMessages((prev) => [...prev, createMessage("user", trimmedInput)]);
     setInput("");
     setTranscriptPreview("");
     setErrorMessage("");
 
-    if (!currentStep) return;
+    if (!currentStep) {
+      const fallbackStepIndex = Math.min(activeStepIndex, steps.length - 1);
+      debugChatWorkflow("invalid currentStep fallback", {
+        currentStepIndex: activeStepIndex,
+        fallbackStepIndex,
+      });
+      setStepIndex(fallbackStepIndex);
+      appendAssistantMessage(
+        steps[fallbackStepIndex]?.question ||
+          "Your application is ready for review."
+      );
+      return;
+    }
 
     if (currentStep.key === "travelDate") {
       const dateValue = trimmedInput.toLowerCase();
@@ -378,16 +492,22 @@ function ChatPage() {
       }
     }
 
+    isProcessingRef.current = true;
     setIsThinking(true);
 
     try {
       if (currentStep.key === "passportUpload") {
-        await handlePassportUploadChoice(trimmedInput);
+        await handlePassportUploadChoice(
+          trimmedInput,
+          activeStepIndex,
+          currentVisaDetails,
+          currentPassportDetails
+        );
         return;
       }
 
       const nextVisaDetails = {
-        ...visaDetails,
+        ...currentVisaDetails,
         [currentStep.key]:
           currentStep.key === "travelDate" &&
           ["not sure", "unknown", "no", "n/a", "na"].includes(trimmedInput.toLowerCase())
@@ -397,14 +517,28 @@ function ChatPage() {
 
       setVisaDetails(nextVisaDetails);
 
-      const acknowledgement = await getAcknowledgement(
+      const acknowledgement = buildImmediateAcknowledgement(
         trimmedInput,
+        currentStep,
         nextVisaDetails
       );
+      debugChatWorkflow("assistant reply generated", { reply: acknowledgement });
 
-      appendAssistantMessage(acknowledgement);
-      await moveToNextStep(stepIndex, nextVisaDetails, passportDetails);
+      void getAcknowledgement(
+        trimmedInput,
+        nextVisaDetails,
+        activeStepIndex,
+        currentPassportDetails
+      );
+
+      await moveToNextStep(
+        activeStepIndex,
+        nextVisaDetails,
+        currentPassportDetails,
+        [acknowledgement]
+      );
     } finally {
+      isProcessingRef.current = false;
       setIsThinking(false);
     }
   };

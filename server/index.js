@@ -6,6 +6,7 @@ const mongoose = require("mongoose");
 
 const chatRoutes = require("./routes/chatRoutes");
 const pdfRoutes = require("./routes/pdfRoutes");
+const passportRoutes = require("./routes/passportRoutes");
 
 mongoose.connect(process.env.MONGO_URI)
 .then(() => {
@@ -18,10 +19,11 @@ mongoose.connect(process.env.MONGO_URI)
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "10mb" }));
 
 app.use("/api/chat", chatRoutes);
 app.use("/api/pdf", pdfRoutes);
+app.use("/api/passport", passportRoutes);
 
 app.get("/", (req, res) => {
   res.send("Visa Assistant Backend Running");

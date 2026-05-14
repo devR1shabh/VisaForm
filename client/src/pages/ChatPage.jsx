@@ -34,8 +34,13 @@ function ChatPage() {
 
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isComplete, setIsComplete] = useState(false);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [pdfError, setPdfError] = useState("");
+  const [isListening, setIsListening] = useState(false);
 
   const endRef = useRef(null);
+  const recognitionRef = useRef(null);
 
   const markdownPlugins = useMemo(() => [remarkGfm], []);
 
@@ -44,7 +49,95 @@ function ChatPage() {
       behavior: "smooth",
       block: "end"
     });
-  }, [messages.length, isLoading]);
+  }, [messages.length, isLoading, isComplete]);
+
+  const handleDownloadPdf = async () => {
+    if (isDownloadingPdf) return;
+
+    setIsDownloadingPdf(true);
+    setPdfError("");
+
+    try {
+      const response = await axios.post(
+        "http://localhost:5000/api/pdf/generate-pdf",
+        applicationData,
+        {
+          responseType: "blob",
+        }
+      );
+
+      const pdfUrl = window.URL.createObjectURL(
+        new Blob([response.data], {
+          type: "application/pdf",
+        })
+      );
+
+      const link = document.createElement("a");
+      link.href = pdfUrl;
+      link.setAttribute("download", "visa-application.pdf");
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(pdfUrl);
+    } catch (error) {
+      console.error("[pdf] download failed", error);
+      setPdfError("Could not download the PDF. Please try again.");
+    } finally {
+      setIsDownloadingPdf(false);
+    }
+  };
+
+  const handleVoiceInput = () => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          sender: "ai",
+          text: "Voice input is not supported in this browser. Please type your answer.",
+        },
+      ]);
+
+      return;
+    }
+
+    if (isListening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      setIsListening(true);
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognition.onerror = () => {
+      setIsListening(false);
+    };
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+
+      setInput((currentInput) => {
+        if (!currentInput.trim()) return transcript;
+
+        return `${currentInput} ${transcript}`;
+      });
+    };
+
+    recognitionRef.current = recognition;
+    recognition.start();
+  };
 
   const handleSend = async () => {
 
@@ -137,6 +230,8 @@ Your visa application details have been recorded successfully.
           aiMessage,
           summaryMessage
         ]);
+
+        setIsComplete(true);
       }
 
     } catch (error) {
@@ -185,7 +280,7 @@ Your visa application details have been recorded successfully.
           </div>
 
           <div className="text-xs text-slate-500 hidden sm:block">
-            {isLoading ? "Thinking…" : "Ready"}
+            {isListening ? "Listening..." : isLoading ? "Thinking..." : "Ready"}
           </div>
 
         </div>
@@ -266,6 +361,27 @@ Your visa application details have been recorded successfully.
 
           )}
 
+          {isComplete && (
+            <div className="flex justify-center pt-3">
+              <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm">
+                <button
+                  type="button"
+                  onClick={handleDownloadPdf}
+                  disabled={isDownloadingPdf}
+                  className="w-full rounded-xl bg-slate-900 px-5 py-3 font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {isDownloadingPdf ? "Preparing PDF..." : "Download PDF"}
+                </button>
+
+                {pdfError && (
+                  <p className="mt-3 text-sm text-red-600">
+                    {pdfError}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
           <div ref={endRef} />
 
         </div>
@@ -289,6 +405,21 @@ Your visa application details have been recorded successfully.
             disabled={isLoading}
             className="flex-1 border border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-900/15 focus:border-slate-400 disabled:bg-slate-50"
           />
+
+          <button
+            type="button"
+            onClick={handleVoiceInput}
+            disabled={isLoading}
+            title="Use voice input"
+            className={[
+              "rounded-xl border px-4 font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+              isListening
+                ? "border-red-200 bg-red-50 text-red-700"
+                : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+            ].join(" ")}
+          >
+            {isListening ? "Stop" : "Mic"}
+          </button>
 
           <button
             onClick={handleSend}

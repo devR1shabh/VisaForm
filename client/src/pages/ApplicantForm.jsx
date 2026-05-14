@@ -1,12 +1,15 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 
 function ApplicantForm() {
+  const location = useLocation();
+  const passportData = location.state?.passportData || {};
+
   const [formData, setFormData] = useState({
-    fullName: "",
-    passportNumber: "",
-    nationality: "",
-    dateOfBirth: "",
+    fullName: passportData.fullName || "",
+    passportNumber: passportData.passportNumber || "",
+    nationality: passportData.nationality || "",
+    dateOfBirth: passportData.dateOfBirth || "",
   });
 
   const handleChange = (e) => {
@@ -23,6 +26,10 @@ function ApplicantForm() {
         <h1 className="text-4xl font-bold mb-8 text-center">
           Confirm Passport Details
         </h1>
+
+        <p className="text-gray-500 text-center mb-8">
+          Review the extracted details and correct anything before continuing.
+        </p>
 
         <div className="space-y-6">
 

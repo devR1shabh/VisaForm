@@ -3,6 +3,42 @@ const VisaApplication = require("../models/VisaApplication");
 
 const router = express.Router();
 
+function toVisaApplicationPayload(applicationData = {}) {
+  const passportDetails = applicationData.passportDetails || {};
+  const visaDetails = applicationData.visaDetails || applicationData;
+
+  return {
+    destinationCountry:
+      visaDetails.destinationCountry || applicationData.country || "",
+    visaType: visaDetails.visaType || applicationData.visaType || "",
+    purposeOfVisit:
+      visaDetails.travelPurpose ||
+      visaDetails.purposeOfVisit ||
+      applicationData.purpose ||
+      "",
+    durationOfStay:
+      visaDetails.duration ||
+      visaDetails.durationOfStay ||
+      applicationData.duration ||
+      "",
+    travelDate: visaDetails.travelDate || applicationData.travelDate || "",
+    accommodationDetails:
+      visaDetails.accommodationDetails ||
+      applicationData.accommodationDetails ||
+      "",
+    additionalNotes:
+      visaDetails.additionalNotes || applicationData.additionalNotes || "",
+    passportDetails: {
+      name: passportDetails.name || passportDetails.fullName || "",
+      passportNumber: passportDetails.passportNumber || "",
+      nationality: passportDetails.nationality || "",
+      sex: passportDetails.sex || "",
+      dateOfBirth: passportDetails.dateOfBirth || "",
+    },
+    submittedAt: new Date(),
+  };
+}
+
 function getGeminiApiKey() {
   const apiKey = (process.env.GEMINI_API_KEY || "").trim();
 
@@ -87,6 +123,28 @@ async function generateGeminiText(prompt) {
   return text;
 }
 
+router.post("/save-application", async (req, res) => {
+  try {
+    const applicationData = req.body.applicationData || req.body;
+    const payload = toVisaApplicationPayload(applicationData);
+
+    const savedApplication = await VisaApplication.create(payload);
+
+    res.json({
+      success: true,
+      applicationId: savedApplication._id,
+      submittedAt: payload.submittedAt,
+    });
+  } catch (error) {
+    console.log("[api/chat/save-application] failed:", error.message);
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to save visa application",
+    });
+  }
+});
+
 router.post("/", async (req, res) => {
 
   try {
@@ -120,15 +178,6 @@ User message:
 ${message}
 `;
 
-    console.log("[api/chat] request", {
-      model: GEMINI_MODEL,
-      apiVersion: GEMINI_API_VERSION,
-      messageLen:
-        typeof message === "string"
-          ? message.length
-          : 0,
-    });
-
     const text = await generateGeminiText(prompt);
 
     // SAVE APPLICATION TO DATABASE
@@ -140,14 +189,7 @@ ${message}
       applicationData.travelDate
     ) {
 
-      await VisaApplication.create({
-        destinationCountry: applicationData.country,
-        purposeOfVisit: applicationData.purpose,
-        durationOfStay: applicationData.duration,
-        travelDate: applicationData.travelDate,
-      });
-
-      console.log("Visa Application Saved");
+      await VisaApplication.create(toVisaApplicationPayload(applicationData));
     }
 
     res.json({

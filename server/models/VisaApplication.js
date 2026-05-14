@@ -3,9 +3,20 @@ const mongoose = require("mongoose");
 const visaApplicationSchema = new mongoose.Schema(
   {
     destinationCountry: String,
+    visaType: String,
     purposeOfVisit: String,
     durationOfStay: String,
+    accommodationDetails: String,
+    additionalNotes: String,
     travelDate: String,
+    passportDetails: {
+      name: String,
+      passportNumber: String,
+      nationality: String,
+      sex: String,
+      dateOfBirth: String,
+    },
+    submittedAt: Date,
   },
   {
     timestamps: true,

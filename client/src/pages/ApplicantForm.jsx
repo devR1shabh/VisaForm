@@ -1,14 +1,17 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 function ApplicantForm() {
   const location = useLocation();
+  const navigate = useNavigate();
   const passportData = location.state?.passportData || {};
+  const extractionError = location.state?.extractionError || "";
 
   const [formData, setFormData] = useState({
-    fullName: passportData.fullName || "",
+    name: passportData.name || passportData.fullName || "",
     passportNumber: passportData.passportNumber || "",
     nationality: passportData.nationality || "",
+    sex: passportData.sex || "",
     dateOfBirth: passportData.dateOfBirth || "",
   });
 
@@ -16,6 +19,14 @@ function ApplicantForm() {
     setFormData({
       ...formData,
       [e.target.name]: e.target.value,
+    });
+  };
+
+  const handleContinue = () => {
+    navigate("/chat", {
+      state: {
+        passportData: formData,
+      },
     });
   };
 
@@ -28,22 +39,28 @@ function ApplicantForm() {
         </h1>
 
         <p className="text-gray-500 text-center mb-8">
-          Review the extracted details and correct anything before continuing.
+          Please verify extracted details before continuing.
         </p>
+
+        {extractionError && (
+          <p className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            {extractionError}
+          </p>
+        )}
 
         <div className="space-y-6">
 
           <div>
             <label className="block mb-2 font-medium">
-              Full Name
+              Name
             </label>
 
             <input
               type="text"
-              name="fullName"
-              value={formData.fullName}
+              name="name"
+              value={formData.name}
               onChange={handleChange}
-              placeholder="Rishabh Vyas"
+              placeholder="Not detected"
               className="w-full border border-gray-300 rounded-xl p-3"
             />
           </div>
@@ -58,7 +75,7 @@ function ApplicantForm() {
               name="passportNumber"
               value={formData.passportNumber}
               onChange={handleChange}
-              placeholder="A1234567"
+              placeholder="Not detected"
               className="w-full border border-gray-300 rounded-xl p-3"
             />
           </div>
@@ -73,9 +90,26 @@ function ApplicantForm() {
               name="nationality"
               value={formData.nationality}
               onChange={handleChange}
-              placeholder="Indian"
+              placeholder="Not detected"
               className="w-full border border-gray-300 rounded-xl p-3"
             />
+          </div>
+
+          <div>
+            <label className="block mb-2 font-medium">
+              Sex
+            </label>
+
+            <select
+              name="sex"
+              value={formData.sex}
+              onChange={handleChange}
+              className="w-full border border-gray-300 rounded-xl p-3"
+            >
+              <option value="">Select</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+            </select>
           </div>
 
           <div>
@@ -92,12 +126,13 @@ function ApplicantForm() {
             />
           </div>
 
-          <Link
-            to="/chat"
-            className="block text-center bg-black text-white py-3 rounded-xl hover:bg-gray-800"
+          <button
+            type="button"
+            onClick={handleContinue}
+            className="block w-full text-center bg-black text-white py-3 rounded-xl hover:bg-gray-800"
           >
             Continue
-          </Link>
+          </button>
 
         </div>
       </div>

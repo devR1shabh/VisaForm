@@ -1,66 +1,366 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+const STORAGE_KEY = "visaAssistantDraft";
+
+const initialVisaDetails = {
+  destinationCountry: "",
+  visaType: "",
+  travelPurpose: "",
+  duration: "",
+  accommodationDetails: "",
+  additionalNotes: "",
+};
+
+const emptyPassportDetails = {
+  name: "",
+  passportNumber: "",
+  nationality: "",
+  sex: "",
+  dateOfBirth: "",
+};
+
+const steps = [
+  {
+    key: "destinationCountry",
+    question: "Which country are you planning to visit?",
+  },
+  {
+    key: "visaType",
+    question: "What type of visa do you need? For example, tourist, student, work, or business.",
+  },
+  {
+    key: "travelPurpose",
+    question: "What is the main purpose of your travel?",
+  },
+  {
+    key: "duration",
+    question: "How long do you plan to stay?",
+  },
+  {
+    key: "passportUpload",
+    question: "Would you like to upload your passport now? You can type yes, upload it with the button, or type no to enter details manually later.",
+  },
+  {
+    key: "accommodationDetails",
+    question: "Please share your accommodation details, such as hotel name, host address, or city of stay.",
+  },
+  {
+    key: "additionalNotes",
+    question: "Any additional notes for this application? Type no if there are none.",
+  },
+];
+
+function loadDraft() {
+  try {
+    const savedDraft = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "{}");
+
+    return {
+      visaDetails: {
+        ...initialVisaDetails,
+        ...(savedDraft.visaDetails || {}),
+      },
+      passportDetails: {
+        ...emptyPassportDetails,
+        ...(savedDraft.passportDetails || {}),
+      },
+      stepIndex: Number.isInteger(savedDraft.stepIndex)
+        ? savedDraft.stepIndex
+        : 0,
+    };
+  } catch {
+    return {
+      visaDetails: initialVisaDetails,
+      passportDetails: emptyPassportDetails,
+      stepIndex: 0,
+    };
+  }
+}
+
+function hasPassportDetails(passportDetails) {
+  return Object.values(passportDetails || {}).some((value) =>
+    String(value || "").trim()
+  );
+}
+
+function formatPassportSummary(passportDetails) {
+  return [
+    `- **Name:** ${passportDetails.name || "Not detected"}`,
+    `- **Passport Number:** ${passportDetails.passportNumber || "Not detected"}`,
+    `- **Nationality:** ${passportDetails.nationality || "Not detected"}`,
+    `- **Sex:** ${passportDetails.sex || "Not detected"}`,
+    `- **Date of Birth:** ${passportDetails.dateOfBirth || "Not detected"}`,
+  ].join("\n");
+}
+
+function buildApplicationSummary(applicationData) {
+  const { visaDetails, passportDetails, submittedAt } = applicationData;
+
+  return `
+# Visa Application Summary
+
+## Passport Details
+${formatPassportSummary(passportDetails)}
+
+## Visa Details
+- **Destination Country:** ${visaDetails.destinationCountry || "Not provided"}
+- **Visa Type:** ${visaDetails.visaType || "Not provided"}
+- **Travel Purpose:** ${visaDetails.travelPurpose || "Not provided"}
+- **Duration of Stay:** ${visaDetails.duration || "Not provided"}
+- **Accommodation Details:** ${visaDetails.accommodationDetails || "Not provided"}
+- **Additional Notes:** ${visaDetails.additionalNotes || "Not provided"}
+- **Submitted At:** ${submittedAt || "Pending"}
+`;
+}
+
 function ChatPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const restoredDraft = useMemo(() => loadDraft(), []);
+  const incomingPassportData = location.state?.passportData;
+  const startStepIndex =
+    incomingPassportData && steps[restoredDraft.stepIndex]?.key === "passportUpload"
+      ? restoredDraft.stepIndex + 1
+      : restoredDraft.stepIndex;
 
-  const questions = [
-    "Which country are you planning to visit?",
-    "What is the purpose of your visit?",
-    "How long do you plan to stay?",
-    "When are you planning to travel?"
-  ];
-
-  const [step, setStep] = useState(0);
-
-  const [applicationData, setApplicationData] = useState({
-    country: "",
-    purpose: "",
-    duration: "",
-    travelDate: ""
+  const [stepIndex, setStepIndex] = useState(startStepIndex);
+  const [visaDetails, setVisaDetails] = useState(restoredDraft.visaDetails);
+  const [passportDetails] = useState({
+    ...restoredDraft.passportDetails,
+    ...(incomingPassportData || {}),
   });
+  const [messages, setMessages] = useState(() => {
+    const openingMessages = [
+      {
+        sender: "ai",
+        text: "Hello! I will guide you step by step through your visa application.",
+      },
+    ];
 
-  const [messages, setMessages] = useState([
-    {
-      sender: "ai",
-      text: "Hello! I will help you complete your visa application."
-    },
-    {
-      sender: "ai",
-      text: questions[0]
+    if (incomingPassportData) {
+      openingMessages.push({
+        sender: "ai",
+        text: `Passport details received. Please continue with the remaining visa details.\n\n${formatPassportSummary(incomingPassportData)}`,
+      });
     }
-  ]);
 
+    openingMessages.push({
+      sender: "ai",
+      text: steps[startStepIndex]?.question || steps[0].question,
+    });
+
+    return openingMessages;
+  });
   const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [isComplete, setIsComplete] = useState(false);
+  const [isThinking, setIsThinking] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
-  const [pdfError, setPdfError] = useState("");
+  const [isComplete, setIsComplete] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
   const [isListening, setIsListening] = useState(false);
 
   const endRef = useRef(null);
   const recognitionRef = useRef(null);
-
   const markdownPlugins = useMemo(() => [remarkGfm], []);
+
+  useEffect(() => {
+    const draft = {
+      visaDetails,
+      passportDetails,
+      stepIndex,
+    };
+
+    sessionStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
+  }, [visaDetails, passportDetails, stepIndex]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({
       behavior: "smooth",
-      block: "end"
+      block: "end",
     });
-  }, [messages.length, isLoading, isComplete]);
+  }, [messages.length, isThinking, isComplete, statusMessage]);
+
+  const appendAssistantMessage = (text) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        sender: "ai",
+        text,
+      },
+    ]);
+  };
+
+  const getAcknowledgement = async (message, nextVisaDetails) => {
+    try {
+      const response = await axios.post("http://localhost:5000/api/chat", {
+        message,
+        applicationData: {
+          visaDetails: nextVisaDetails,
+          passportDetails,
+        },
+      });
+
+      return response.data.reply || "Noted.";
+    } catch {
+      return "Noted. I have recorded that.";
+    }
+  };
+
+  const completeApplication = async (nextVisaDetails, nextPassportDetails) => {
+    const applicationData = {
+      visaDetails: nextVisaDetails,
+      passportDetails: nextPassportDetails,
+      submittedAt: new Date().toISOString(),
+    };
+
+    setIsSaving(true);
+    setStatusMessage("Saving application...");
+    setErrorMessage("");
+
+    try {
+      const response = await axios.post(
+        "http://localhost:5000/api/chat/save-application",
+        {
+          applicationData,
+        }
+      );
+
+      const submittedAt =
+        response.data.submittedAt || applicationData.submittedAt;
+
+      setIsComplete(true);
+      setStatusMessage("Application saved successfully.");
+      appendAssistantMessage(
+        `${buildApplicationSummary({
+          ...applicationData,
+          submittedAt,
+        })}\n\nYour application has been saved. You can now download the PDF.`
+      );
+    } catch {
+      setErrorMessage(
+        "Could not save the application. Please check the backend connection and try again."
+      );
+      appendAssistantMessage(
+        "I could not save the application right now. Your entered details are still visible here, so you can try again."
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const moveToNextStep = async (currentStepIndex, nextVisaDetails, nextPassportDetails) => {
+    let nextStepIndex = currentStepIndex + 1;
+
+    if (
+      steps[nextStepIndex]?.key === "passportUpload" &&
+      hasPassportDetails(nextPassportDetails)
+    ) {
+      nextStepIndex += 1;
+    }
+
+    if (nextStepIndex >= steps.length) {
+      setStepIndex(nextStepIndex);
+      await completeApplication(nextVisaDetails, nextPassportDetails);
+      return;
+    }
+
+    setStepIndex(nextStepIndex);
+    appendAssistantMessage(steps[nextStepIndex].question);
+  };
+
+  const handlePassportUploadChoice = async (answer) => {
+    const normalizedAnswer = answer.trim().toLowerCase();
+
+    if (["yes", "y", "upload", "sure", "ok", "okay"].includes(normalizedAnswer)) {
+      appendAssistantMessage(
+        "Great. Use the Upload Passport button below. After extraction, you will review and confirm the details before returning here."
+      );
+      return;
+    }
+
+    if (["no", "n", "skip"].includes(normalizedAnswer)) {
+      appendAssistantMessage(
+        "No problem. You can continue and add passport details manually later if needed."
+      );
+      await moveToNextStep(stepIndex, visaDetails, passportDetails);
+      return;
+    }
+
+    appendAssistantMessage(
+      "Please type yes to upload your passport now, or no to continue without uploading."
+    );
+  };
+
+  const handleSend = async () => {
+    if (isThinking || isSaving || isComplete) return;
+
+    const trimmedInput = input.trim();
+    if (!trimmedInput) return;
+
+    const currentStep = steps[stepIndex];
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        sender: "user",
+        text: trimmedInput,
+      },
+    ]);
+    setInput("");
+    setErrorMessage("");
+
+    if (!currentStep) return;
+
+    setIsThinking(true);
+
+    try {
+      if (currentStep.key === "passportUpload") {
+        await handlePassportUploadChoice(trimmedInput);
+        return;
+      }
+
+      const nextVisaDetails = {
+        ...visaDetails,
+        [currentStep.key]: trimmedInput,
+      };
+
+      setVisaDetails(nextVisaDetails);
+
+      const acknowledgement = await getAcknowledgement(
+        trimmedInput,
+        nextVisaDetails
+      );
+
+      appendAssistantMessage(acknowledgement);
+      await moveToNextStep(stepIndex, nextVisaDetails, passportDetails);
+    } finally {
+      setIsThinking(false);
+    }
+  };
+
+  const handleUploadClick = () => {
+    navigate("/upload");
+  };
 
   const handleDownloadPdf = async () => {
     if (isDownloadingPdf) return;
 
     setIsDownloadingPdf(true);
-    setPdfError("");
+    setStatusMessage("Generating PDF...");
+    setErrorMessage("");
 
     try {
       const response = await axios.post(
         "http://localhost:5000/api/pdf/generate-pdf",
-        applicationData,
+        {
+          visaDetails,
+          passportDetails,
+          submittedAt: new Date().toISOString(),
+        },
         {
           responseType: "blob",
         }
@@ -79,9 +379,10 @@ function ChatPage() {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(pdfUrl);
-    } catch (error) {
-      console.error("[pdf] download failed", error);
-      setPdfError("Could not download the PDF. Please try again.");
+      setStatusMessage("PDF generated successfully.");
+    } catch {
+      setErrorMessage("Could not generate the PDF. Please try again.");
+      setStatusMessage("");
     } finally {
       setIsDownloadingPdf(false);
     }
@@ -92,14 +393,9 @@ function ChatPage() {
       window.SpeechRecognition || window.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: "ai",
-          text: "Voice input is not supported in this browser. Please type your answer.",
-        },
-      ]);
-
+      appendAssistantMessage(
+        "Voice input is not supported in this browser. Please type your answer."
+      );
       return;
     }
 
@@ -123,6 +419,9 @@ function ChatPage() {
 
     recognition.onerror = () => {
       setIsListening(false);
+      appendAssistantMessage(
+        "I could not hear that clearly. Please try the microphone again or type your answer."
+      );
     };
 
     recognition.onresult = (event) => {
@@ -139,226 +438,97 @@ function ChatPage() {
     recognition.start();
   };
 
-  const handleSend = async () => {
-
-    if (isLoading) return;
-    if (!input.trim()) return;
-
-    const userMessage = {
-      sender: "user",
-      text: input
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-
-    // FIXED STATE UPDATE
-    const updatedApplicationData = {
-      ...applicationData
-    };
-
-    if (step === 0) {
-      updatedApplicationData.country = input;
-    }
-
-    if (step === 1) {
-      updatedApplicationData.purpose = input;
-    }
-
-    if (step === 2) {
-      updatedApplicationData.duration = input;
-    }
-
-    if (step === 3) {
-      updatedApplicationData.travelDate = input;
-    }
-
-    setApplicationData(updatedApplicationData);
-
-    setIsLoading(true);
-
-    try {
-
-      const response = await axios.post(
-        "http://localhost:5000/api/chat",
-        {
-          message: input,
-          applicationData: updatedApplicationData
-        }
-      );
-
-      const aiMessage = {
-        sender: "ai",
-        text: response.data.reply
-      };
-
-      if (step < questions.length - 1) {
-
-        const nextStep = step + 1;
-
-        setStep(nextStep);
-
-        setMessages((prev) => [
-          ...prev,
-          aiMessage,
-          {
-            sender: "ai",
-            text: questions[nextStep]
-          }
-        ]);
-
-      } else {
-
-        const summaryMessage = {
-          sender: "ai",
-          text: `
-# Visa Application Summary
-
-- **Destination Country:** ${updatedApplicationData.country}
-
-- **Purpose of Visit:** ${updatedApplicationData.purpose}
-
-- **Duration of Stay:** ${updatedApplicationData.duration}
-
-- **Travel Date:** ${updatedApplicationData.travelDate}
-
-Your visa application details have been recorded successfully.
-`
-        };
-
-        setMessages((prev) => [
-          ...prev,
-          aiMessage,
-          summaryMessage
-        ]);
-
-        setIsComplete(true);
-      }
-
-    } catch (error) {
-
-      console.error("[chat] request failed", {
-        message: error?.message,
-        status: error?.response?.status,
-        data: error?.response?.data,
-      });
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          sender: "ai",
-          text: "Sorry — I couldn't get a response right now. Please try again."
-        }
-      ]);
-
-    } finally {
-
-      setIsLoading(false);
-
-    }
-
-    setInput("");
-
-  };
+  const disableInput = isThinking || isSaving || isComplete;
+  const shouldShowUploadButton =
+    steps[stepIndex]?.key === "passportUpload" && !isComplete;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-slate-100 flex flex-col">
-
-      <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur">
-
+    <div className="min-h-screen bg-slate-100 flex flex-col">
+      <div className="sticky top-0 z-10 border-b border-slate-200 bg-white">
         <div className="mx-auto w-full max-w-4xl px-4 py-4 flex items-center justify-between">
-
           <div>
-
             <div className="text-lg font-semibold text-slate-900">
               AI Visa Assistant
             </div>
-
             <div className="text-sm text-slate-500">
-              Ask questions and get step-by-step guidance
+              Guided visa application chat
             </div>
-
           </div>
 
           <div className="text-xs text-slate-500 hidden sm:block">
-            {isListening ? "Listening..." : isLoading ? "Thinking..." : "Ready"}
+            {isListening
+              ? "Listening..."
+              : isSaving
+                ? "Saving..."
+                : isThinking
+                  ? "Thinking..."
+                  : "Ready"}
           </div>
-
         </div>
-
       </div>
 
       <div className="flex-1 overflow-y-auto">
-
         <div className="mx-auto w-full max-w-4xl px-4 py-6 space-y-3">
-
           {messages.map((msg, index) => {
-
             const isUser = msg.sender === "user";
 
             return (
-
               <div
-                key={index}
-                className={`flex ${
-                  isUser
-                    ? "justify-end"
-                    : "justify-start"
-                }`}
+                key={`${msg.sender}-${index}`}
+                className={`flex ${isUser ? "justify-end" : "justify-start"}`}
               >
-
                 <div
                   className={[
                     "max-w-[85%] sm:max-w-[70%] rounded-2xl px-4 py-3 shadow-sm border",
                     isUser
                       ? "bg-slate-900 text-white border-slate-900"
-                      : "bg-white text-slate-900 border-slate-200"
+                      : "bg-white text-slate-900 border-slate-200",
                   ].join(" ")}
                 >
-
                   {isUser ? (
-
                     <div className="whitespace-pre-wrap break-words">
                       {msg.text}
                     </div>
-
                   ) : (
-
                     <div className="markdown text-sm leading-relaxed">
-
                       <ReactMarkdown remarkPlugins={markdownPlugins}>
                         {msg.text}
                       </ReactMarkdown>
-
                     </div>
-
                   )}
-
                 </div>
-
               </div>
-
             );
-
           })}
 
-          {isLoading && (
-
+          {(isThinking || isSaving || isDownloadingPdf) && (
             <div className="flex justify-start">
-
               <div className="max-w-[85%] sm:max-w-[70%] rounded-2xl px-4 py-3 shadow-sm border bg-white text-slate-900 border-slate-200">
-
                 <div className="flex items-center gap-2 text-sm text-slate-600">
-
                   <span className="inline-block h-2 w-2 rounded-full bg-slate-400 animate-pulse" />
-
-                  <span>Thinking…</span>
-
+                  <span>
+                    {isSaving
+                      ? "Saving application..."
+                      : isDownloadingPdf
+                        ? "Generating PDF..."
+                        : "Thinking..."}
+                  </span>
                 </div>
-
               </div>
-
             </div>
+          )}
 
+          {shouldShowUploadButton && (
+            <div className="flex justify-center pt-2">
+              <button
+                type="button"
+                onClick={handleUploadClick}
+                disabled={isThinking || isSaving}
+                className="rounded-xl border border-slate-300 bg-white px-5 py-3 font-medium text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Upload Passport
+              </button>
+            </div>
           )}
 
           {isComplete && (
@@ -368,33 +538,39 @@ Your visa application details have been recorded successfully.
                   type="button"
                   onClick={handleDownloadPdf}
                   disabled={isDownloadingPdf}
-                  className="w-full rounded-xl bg-slate-900 px-5 py-3 font-medium text-white transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="w-full rounded-xl bg-slate-900 px-5 py-3 font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  {isDownloadingPdf ? "Preparing PDF..." : "Download PDF"}
+                  {isDownloadingPdf ? "Generating PDF..." : "Download PDF"}
                 </button>
-
-                {pdfError && (
-                  <p className="mt-3 text-sm text-red-600">
-                    {pdfError}
-                  </p>
-                )}
               </div>
             </div>
           )}
 
+          {statusMessage && (
+            <p className="text-center text-sm text-slate-600">
+              {statusMessage}
+            </p>
+          )}
+
+          {errorMessage && (
+            <p className="text-center text-sm text-red-600">
+              {errorMessage}
+            </p>
+          )}
+
           <div ref={endRef} />
-
         </div>
-
       </div>
 
       <div className="border-t border-slate-200 bg-white">
-
         <div className="mx-auto w-full max-w-4xl px-4 py-4 flex gap-3">
-
           <input
             type="text"
-            placeholder="Type your message..."
+            placeholder={
+              isComplete
+                ? "Application complete"
+                : "Type your message..."
+            }
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
@@ -402,37 +578,35 @@ Your visa application details have been recorded successfully.
                 handleSend();
               }
             }}
-            disabled={isLoading}
+            disabled={disableInput}
             className="flex-1 border border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-900/15 focus:border-slate-400 disabled:bg-slate-50"
           />
 
           <button
             type="button"
             onClick={handleVoiceInput}
-            disabled={isLoading}
+            disabled={disableInput}
             title="Use voice input"
             className={[
-              "rounded-xl border px-4 font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+              "rounded-xl border px-4 font-medium disabled:cursor-not-allowed disabled:opacity-50",
               isListening
                 ? "border-red-200 bg-red-50 text-red-700"
-                : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
             ].join(" ")}
           >
             {isListening ? "Stop" : "Mic"}
           </button>
 
           <button
+            type="button"
             onClick={handleSend}
-            disabled={isLoading || !input.trim()}
-            className="bg-slate-900 text-white px-5 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-800 transition-colors"
+            disabled={disableInput || !input.trim()}
+            className="bg-slate-900 text-white px-5 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-800"
           >
-            {isLoading ? "Sending…" : "Send"}
+            {isThinking ? "Sending..." : "Send"}
           </button>
-
         </div>
-
       </div>
-
     </div>
   );
 }

@@ -9,6 +9,7 @@ function UploadPassport() {
   const [imagePreview, setImagePreview] = useState(null);
   const [isExtracting, setIsExtracting] = useState(false);
   const [error, setError] = useState("");
+  const [status, setStatus] = useState("");
 
   const handleImageChange = (e) => {
     const selectedFile = e.target.files[0];
@@ -17,6 +18,7 @@ function UploadPassport() {
       setFile(selectedFile);
       setImagePreview(URL.createObjectURL(selectedFile));
       setError("");
+      setStatus("Upload successful");
     }
   };
 
@@ -61,10 +63,20 @@ function UploadPassport() {
     } catch (error) {
       console.error("[passport] extraction failed", error);
 
-      setError(
-        error?.response?.data?.message ||
-          "Could not extract passport details. Please try another image."
-      );
+      navigate("/form", {
+        state: {
+          passportData: {
+            name: "",
+            passportNumber: "",
+            nationality: "",
+            sex: "",
+            dateOfBirth: "",
+          },
+          extractionError:
+            error?.response?.data?.message ||
+            "Could not extract passport details. You can enter details manually.",
+        },
+      });
     } finally {
       setIsExtracting(false);
     }
@@ -116,6 +128,12 @@ function UploadPassport() {
               alt="Passport Preview"
               className="rounded-2xl shadow-md w-full"
             />
+
+            {status && (
+              <p className="mt-4 text-sm text-green-700">
+                {status}
+              </p>
+            )}
 
             {error && (
               <p className="mt-4 text-sm text-red-600">

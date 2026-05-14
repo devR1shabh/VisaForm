@@ -1,5 +1,23 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import {
+  ArrowRight,
+  Bot,
+  Calendar,
+  IdCard,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
+import {
+  AppShell,
+  Button,
+  Card,
+  Input,
+  Select,
+  StatusBadge,
+} from "../components/ui";
+import { fadeUp } from "../components/animations";
 import {
   cleanupField,
   isValidHtmlDate,
@@ -54,118 +72,133 @@ function ApplicantForm() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center px-4">
-      <div className="bg-white p-10 rounded-3xl shadow-xl w-full max-w-2xl">
-
-        <h1 className="text-4xl font-bold mb-8 text-center">
-          Confirm Passport Details
-        </h1>
-
-        <p className="text-gray-500 text-center mb-8">
-          Please verify extracted details before continuing.
-        </p>
-
-        {extractionError && (
-          <p className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-            {extractionError}
-          </p>
-        )}
-
-        {error && (
-          <p className="mb-6 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-            {error}
-          </p>
-        )}
-
-        <div className="space-y-6">
-
-          <div>
-            <label className="block mb-2 font-medium">
-              Name
-            </label>
-
-            <input
-              type="text"
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-              placeholder="Not detected"
-              className="w-full border border-gray-300 rounded-xl p-3"
-            />
+    <AppShell>
+      <main className="px-4 py-12 sm:px-6 lg:px-8">
+        <motion.div {...fadeUp} className="mx-auto max-w-6xl">
+          <div className="mb-8 text-center">
+            <StatusBadge icon={ShieldCheck}>Human verification</StatusBadge>
+            <h1 className="mt-5 text-4xl font-bold tracking-tight text-slate-950">
+              Confirm Passport Details
+            </h1>
+            <p className="mx-auto mt-3 max-w-2xl text-slate-600">
+              Review the extracted details and correct anything before continuing to the AI assistant.
+            </p>
           </div>
 
-          <div>
-            <label className="block mb-2 font-medium">
-              Passport Number
-            </label>
+          <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+            <Card className="p-6 sm:p-8">
+              {extractionError && (
+                <div className="mb-6 rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                  {extractionError}
+                </div>
+              )}
 
-            <input
-              type="text"
-              name="passportNumber"
-              value={formData.passportNumber}
-              onChange={handleChange}
-              placeholder="Not detected"
-              className="w-full border border-gray-300 rounded-xl p-3"
-            />
+              {error && (
+                <div className="mb-6 rounded-3xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                  {error}
+                </div>
+              )}
+
+              <div className="grid gap-5 md:grid-cols-2">
+                <label className="block">
+                  <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <UserRound className="h-4 w-4 text-indigo-500" />
+                    Name
+                  </span>
+                  <Input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    placeholder="Not Detected"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <IdCard className="h-4 w-4 text-indigo-500" />
+                    Passport Number
+                  </span>
+                  <Input
+                    type="text"
+                    name="passportNumber"
+                    value={formData.passportNumber}
+                    onChange={handleChange}
+                    placeholder="Not Detected"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 text-sm font-semibold text-slate-700">
+                    Nationality
+                  </span>
+                  <Input
+                    type="text"
+                    name="nationality"
+                    value={formData.nationality}
+                    onChange={handleChange}
+                    placeholder="Not Detected"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 text-sm font-semibold text-slate-700">
+                    Sex
+                  </span>
+                  <Select
+                    name="sex"
+                    value={formData.sex}
+                    onChange={handleChange}
+                  >
+                    <option value="">Select Sex</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                  </Select>
+                </label>
+
+                <label className="block md:col-span-2">
+                  <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <Calendar className="h-4 w-4 text-indigo-500" />
+                    Date of Birth
+                  </span>
+                  <Input
+                    type="date"
+                    name="dateOfBirth"
+                    value={formData.dateOfBirth}
+                    onChange={handleChange}
+                  />
+                </label>
+              </div>
+
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <Button type="button" variant="secondary" onClick={() => navigate("/upload")}>
+                  Re-upload Passport
+                </Button>
+                <Button type="button" onClick={handleContinue}>
+                  Continue to AI Assistant
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </Card>
+
+            <Card className="h-fit bg-gradient-to-br from-slate-950 to-indigo-950 text-white">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10">
+                <Bot className="h-6 w-6 text-indigo-200" />
+              </div>
+              <h2 className="mt-5 text-xl font-bold">
+                AI helper
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-indigo-100">
+                Please verify your extracted details before continuing. Missing fields are okay for this demo, but incorrect fields should be corrected now.
+              </p>
+              <div className="mt-6 rounded-2xl bg-white/10 p-4 text-sm text-indigo-50">
+                The assistant will use these confirmed passport details when saving the final application and generating the PDF.
+              </div>
+            </Card>
           </div>
-
-          <div>
-            <label className="block mb-2 font-medium">
-              Nationality
-            </label>
-
-            <input
-              type="text"
-              name="nationality"
-              value={formData.nationality}
-              onChange={handleChange}
-              placeholder="Not detected"
-              className="w-full border border-gray-300 rounded-xl p-3"
-            />
-          </div>
-
-          <div>
-            <label className="block mb-2 font-medium">
-              Sex
-            </label>
-
-            <select
-              name="sex"
-              value={formData.sex}
-              onChange={handleChange}
-              className="w-full border border-gray-300 rounded-xl p-3"
-            >
-              <option value="">Select Sex</option>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block mb-2 font-medium">
-              Date of Birth
-            </label>
-
-            <input
-              type="date"
-              name="dateOfBirth"
-              value={formData.dateOfBirth}
-              onChange={handleChange}
-              className="w-full border border-gray-300 rounded-xl p-3"
-            />
-          </div>
-
-          <button
-            type="button"
-            onClick={handleContinue}
-            className="block w-full text-center bg-black text-white py-3 rounded-xl hover:bg-gray-800"
-          >
-            Continue
-          </button>
-
-        </div>
-      </div>
-    </div>
+        </motion.div>
+      </main>
+    </AppShell>
   );
 }
 

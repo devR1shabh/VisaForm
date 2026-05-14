@@ -1,8 +1,28 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  ArrowRight,
+  Bot,
+  FileText,
+  Mic,
+  MicOff,
+  Send,
+  Sparkles,
+  UploadCloud,
+  Volume2,
+} from "lucide-react";
+import {
+  AppShell,
+  Button,
+  Card,
+  ChatBubble,
+  LoadingState,
+  StatusBadge,
+} from "../components/ui";
 import {
   cleanupField,
   formatDate,
@@ -15,6 +35,7 @@ import {
 } from "../utils/formatters";
 
 const STORAGE_KEY = "visaAssistantDraft";
+const FINAL_APPLICATION_KEY = "visaAssistantFinalApplication";
 
 const initialVisaDetails = {
   destinationCountry: "",
@@ -35,39 +56,44 @@ const emptyPassportDetails = {
 };
 
 const steps = [
-  {
-    key: "destinationCountry",
-    question: "Which country are you planning to visit?",
-  },
+  { key: "destinationCountry", question: "Which country are you planning to visit?" },
   {
     key: "visaType",
     question: "What type of visa do you need? For example, tourist, student, work, or business.",
   },
-  {
-    key: "travelPurpose",
-    question: "What is the main purpose of your travel?",
-  },
-  {
-    key: "duration",
-    question: "How long do you plan to stay?",
-  },
+  { key: "travelPurpose", question: "What is the main purpose of your travel?" },
+  { key: "duration", question: "How long do you plan to stay?" },
   {
     key: "travelDate",
     question: "What is your planned travel date? Use YYYY-MM-DD if known, or type not sure.",
   },
   {
     key: "passportUpload",
-    question: "Would you like to upload your passport now? You can type yes, upload it with the button, or type no to enter details manually later.",
+    question: "Would you like to upload your passport now? You can type yes, upload it with the button, or no to continue.",
   },
   {
     key: "accommodationDetails",
     question: "Please share your accommodation details, such as hotel name, host address, or city of stay.",
   },
-  {
-    key: "additionalNotes",
-    question: "Any additional notes for this application? Type no if there are none.",
-  },
+  { key: "additionalNotes", question: "Any additional notes for this application? Type no if there are none." },
 ];
+
+const quickReplies = ["Tourism", "Work", "Study", "Business"];
+
+function timestamp() {
+  return new Date().toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function createMessage(sender, text) {
+  return {
+    sender,
+    text,
+    timestamp: timestamp(),
+  };
+}
 
 function loadDraft() {
   try {
@@ -109,7 +135,11 @@ function formatPassportSummary(passportDetails) {
     `- **Passport Number:** ${formatDetected(normalizedPassportDetails.passportNumber)}`,
     `- **Nationality:** ${formatDetected(normalizedPassportDetails.nationality)}`,
     `- **Sex:** ${formatDetected(normalizedPassportDetails.sex)}`,
-    `- **Date of Birth:** ${normalizedPassportDetails.dateOfBirth ? formatDate(normalizedPassportDetails.dateOfBirth) : "Not detected"}`,
+    `- **Date of Birth:** ${
+      normalizedPassportDetails.dateOfBirth
+        ? formatDate(normalizedPassportDetails.dateOfBirth)
+        : "Not detected"
+    }`,
   ].join("\n");
 }
 
@@ -153,30 +183,31 @@ function ChatPage() {
   });
   const [messages, setMessages] = useState(() => {
     const openingMessages = [
-      {
-        sender: "ai",
-        text: "Hello! I will guide you step by step through your visa application.",
-      },
+      createMessage(
+        "ai",
+        "Hello! I will guide you step by step through your visa application."
+      ),
     ];
 
     if (incomingPassportData) {
-      openingMessages.push({
-        sender: "ai",
-        text: `Passport details received. Please continue with the remaining visa details.\n\n${formatPassportSummary(incomingPassportData)}`,
-      });
+      openingMessages.push(
+        createMessage(
+          "ai",
+          `Great! I've saved your passport details. Please continue with the remaining visa details.\n\n${formatPassportSummary(incomingPassportData)}`
+        )
+      );
     }
 
-    openingMessages.push({
-      sender: "ai",
-      text: steps[startStepIndex]?.question || steps[0].question,
-    });
+    openingMessages.push(
+      createMessage("ai", steps[startStepIndex]?.question || steps[0].question)
+    );
 
     return openingMessages;
   });
   const [input, setInput] = useState("");
+  const [transcriptPreview, setTranscriptPreview] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -204,13 +235,7 @@ function ChatPage() {
   }, [messages.length, isThinking, isComplete, statusMessage]);
 
   const appendAssistantMessage = (text) => {
-    setMessages((prev) => [
-      ...prev,
-      {
-        sender: "ai",
-        text,
-      },
-    ]);
+    setMessages((prev) => [...prev, createMessage("ai", text)]);
   };
 
   const getAcknowledgement = async (message, nextVisaDetails) => {
@@ -252,21 +277,24 @@ function ChatPage() {
     try {
       const response = await axios.post(
         "http://localhost:5000/api/chat/save-application",
-        {
-          applicationData,
-        }
+        { applicationData }
       );
 
-      const submittedAt =
-        response.data.submittedAt || applicationData.submittedAt;
+      const finalApplicationData = {
+        ...applicationData,
+        applicationId: response.data.applicationId,
+        submittedAt: response.data.submittedAt || applicationData.submittedAt,
+      };
+
+      sessionStorage.setItem(
+        FINAL_APPLICATION_KEY,
+        JSON.stringify(finalApplicationData)
+      );
 
       setIsComplete(true);
       setStatusMessage("Application saved successfully.");
       appendAssistantMessage(
-        `${buildApplicationSummary({
-          ...applicationData,
-          submittedAt,
-        })}\n\nVisa application submitted successfully. You can now download the PDF.`
+        `${buildApplicationSummary(finalApplicationData)}\n\nVisa application submitted successfully. Review the summary before generating the PDF.`
       );
     } catch {
       setErrorMessage(
@@ -305,7 +333,7 @@ function ChatPage() {
 
     if (["yes", "y", "upload", "sure", "ok", "okay"].includes(normalizedAnswer)) {
       appendAssistantMessage(
-        "Great. Use the Upload Passport button below. After extraction, you will review and confirm the details before returning here."
+        "Great. Use the upload shortcut below. After extraction, you will review and confirm the details before returning here."
       );
       return;
     }
@@ -323,22 +351,17 @@ function ChatPage() {
     );
   };
 
-  const handleSend = async () => {
+  const handleSend = async (forcedValue) => {
     if (isThinking || isSaving || isComplete) return;
 
-    const trimmedInput = input.trim();
+    const trimmedInput = cleanupField(forcedValue || input);
     if (!trimmedInput) return;
 
     const currentStep = steps[stepIndex];
 
-    setMessages((prev) => [
-      ...prev,
-      {
-        sender: "user",
-        text: trimmedInput,
-      },
-    ]);
+    setMessages((prev) => [...prev, createMessage("user", trimmedInput)]);
     setInput("");
+    setTranscriptPreview("");
     setErrorMessage("");
 
     if (!currentStep) return;
@@ -390,63 +413,6 @@ function ChatPage() {
     navigate("/upload");
   };
 
-  const handleDownloadPdf = async () => {
-    if (isDownloadingPdf) return;
-
-    setIsDownloadingPdf(true);
-    setStatusMessage("Generating PDF...");
-    setErrorMessage("");
-
-    try {
-      const normalizedApplicationData = normalizeApplicationData({
-        visaDetails,
-        passportDetails,
-        submittedAt: new Date().toISOString(),
-      });
-
-      if (
-        !normalizedApplicationData.visaDetails.destinationCountry ||
-        !normalizedApplicationData.visaDetails.visaType ||
-        !normalizedApplicationData.visaDetails.travelPurpose ||
-        !normalizedApplicationData.visaDetails.duration
-      ) {
-        setErrorMessage(
-          "Please complete the required visa details before generating the PDF."
-        );
-        setStatusMessage("");
-        return;
-      }
-
-      const response = await axios.post(
-        "http://localhost:5000/api/pdf/generate-pdf",
-        normalizedApplicationData,
-        {
-          responseType: "blob",
-        }
-      );
-
-      const pdfUrl = window.URL.createObjectURL(
-        new Blob([response.data], {
-          type: "application/pdf",
-        })
-      );
-
-      const link = document.createElement("a");
-      link.href = pdfUrl;
-      link.setAttribute("download", "visa-application.pdf");
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(pdfUrl);
-      setStatusMessage("Visa application submitted and PDF generated successfully.");
-    } catch {
-      setErrorMessage("Could not generate the PDF. Please try again.");
-      setStatusMessage("");
-    } finally {
-      setIsDownloadingPdf(false);
-    }
-  };
-
   const handleVoiceInput = () => {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -465,11 +431,12 @@ function ChatPage() {
 
     const recognition = new SpeechRecognition();
     recognition.lang = "en-US";
-    recognition.interimResults = false;
+    recognition.interimResults = true;
     recognition.maxAlternatives = 1;
 
     recognition.onstart = () => {
       setIsListening(true);
+      setTranscriptPreview("Listening...");
     };
 
     recognition.onend = () => {
@@ -478,19 +445,25 @@ function ChatPage() {
 
     recognition.onerror = () => {
       setIsListening(false);
+      setTranscriptPreview("");
       appendAssistantMessage(
         "I could not hear that clearly. Please try the microphone again or type your answer."
       );
     };
 
     recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
+      const transcript = Array.from(event.results)
+        .map((result) => result[0].transcript)
+        .join(" ");
 
-      setInput((currentInput) => {
-        if (!currentInput.trim()) return transcript;
+      setTranscriptPreview(transcript);
 
-        return `${currentInput} ${transcript}`;
-      });
+      if (event.results[event.results.length - 1].isFinal) {
+        setInput((currentInput) => {
+          if (!currentInput.trim()) return transcript;
+          return `${currentInput} ${transcript}`;
+        });
+      }
     };
 
     recognitionRef.current = recognition;
@@ -500,173 +473,235 @@ function ChatPage() {
   const disableInput = isThinking || isSaving || isComplete;
   const shouldShowUploadButton =
     steps[stepIndex]?.key === "passportUpload" && !isComplete;
+  const currentStep = steps[stepIndex];
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col">
-      <div className="sticky top-0 z-10 border-b border-slate-200 bg-white">
-        <div className="mx-auto w-full max-w-4xl px-4 py-4 flex items-center justify-between">
-          <div>
-            <div className="text-lg font-semibold text-slate-900">
-              AI Visa Assistant
-            </div>
-            <div className="text-sm text-slate-500">
-              Guided visa application chat
-            </div>
-          </div>
+    <AppShell showFooter={false}>
+      <main className="grid min-h-[calc(100vh-73px)] grid-cols-1 lg:grid-cols-[320px_1fr]">
+        <aside className="hidden border-r border-slate-200/80 bg-white/65 p-6 lg:block">
+          <StatusBadge>Workflow</StatusBadge>
+          <h1 className="mt-5 text-2xl font-bold text-slate-950">
+            AI Visa Assistant
+          </h1>
+          <p className="mt-3 text-sm leading-6 text-slate-600">
+            Complete the visa workflow through a guided chat experience.
+          </p>
 
-          <div className="text-xs text-slate-500 hidden sm:block">
-            {isListening
-              ? "Listening..."
-              : isSaving
-                ? "Saving..."
-                : isThinking
-                  ? "Thinking..."
-                  : "Ready"}
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-4xl px-4 py-6 space-y-3">
-          {messages.map((msg, index) => {
-            const isUser = msg.sender === "user";
-
-            return (
+          <div className="mt-8 space-y-3">
+            {steps.map((step, index) => (
               <div
-                key={`${msg.sender}-${index}`}
-                className={`flex ${isUser ? "justify-end" : "justify-start"}`}
+                key={step.key}
+                className={[
+                  "rounded-2xl border p-3 text-sm",
+                  index === stepIndex
+                    ? "border-indigo-200 bg-indigo-50 text-indigo-900"
+                    : index < stepIndex
+                      ? "border-emerald-100 bg-emerald-50 text-emerald-800"
+                      : "border-slate-200 bg-white text-slate-500",
+                ].join(" ")}
               >
-                <div
-                  className={[
-                    "max-w-[85%] sm:max-w-[70%] rounded-2xl px-4 py-3 shadow-sm border",
-                    isUser
-                      ? "bg-slate-900 text-white border-slate-900"
-                      : "bg-white text-slate-900 border-slate-200",
-                  ].join(" ")}
+                <span className="font-semibold">{index + 1}.</span>{" "}
+                {step.key === "passportUpload" ? "Passport upload" : step.question}
+              </div>
+            ))}
+          </div>
+        </aside>
+
+        <section className="flex min-h-0 flex-col">
+          <div className="border-b border-slate-200/80 bg-white/80 px-4 py-4 backdrop-blur sm:px-6">
+            <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/20">
+                  <Bot className="h-5 w-5" />
+                </div>
+                <div>
+                  <p className="font-bold text-slate-950">Visa AI Co-Pilot</p>
+                  <p className="text-xs text-slate-500">
+                    {isListening
+                      ? "Listening..."
+                      : isSaving
+                        ? "Saving..."
+                        : isThinking
+                          ? "Thinking..."
+                          : currentStep?.question || "Review ready"}
+                  </p>
+                </div>
+              </div>
+
+              <Button as={Link} to="/upload" variant="secondary" className="hidden sm:inline-flex">
+                <UploadCloud className="h-4 w-4" />
+                Upload
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
+            <div className="mx-auto max-w-5xl space-y-4">
+              {messages.map((msg, index) => (
+                <ChatBubble
+                  key={`${msg.sender}-${index}`}
+                  sender={msg.sender}
+                  timestamp={msg.timestamp}
                 >
-                  {isUser ? (
-                    <div className="whitespace-pre-wrap break-words">
-                      {msg.text}
-                    </div>
+                  {msg.sender === "user" ? (
+                    <div className="whitespace-pre-wrap break-words">{msg.text}</div>
                   ) : (
-                    <div className="markdown text-sm leading-relaxed">
+                    <div className="markdown leading-relaxed">
                       <ReactMarkdown remarkPlugins={markdownPlugins}>
                         {msg.text}
                       </ReactMarkdown>
                     </div>
                   )}
-                </div>
-              </div>
-            );
-          })}
+                </ChatBubble>
+              ))}
 
-          {(isThinking || isSaving || isDownloadingPdf) && (
-            <div className="flex justify-start">
-              <div className="max-w-[85%] sm:max-w-[70%] rounded-2xl px-4 py-3 shadow-sm border bg-white text-slate-900 border-slate-200">
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <span className="inline-block h-2 w-2 rounded-full bg-slate-400 animate-pulse" />
-                  <span>
-                    {isSaving
-                      ? "Saving application..."
-                      : isDownloadingPdf
-                        ? "Generating PDF..."
-                        : "Thinking..."}
+              <AnimatePresence>
+                {(isThinking || isSaving) && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: 8 }}
+                  >
+                    <LoadingState
+                      title={isSaving ? "Saving application..." : "AI assistant is typing..."}
+                      description={isSaving ? "Storing submitted data in MongoDB" : "Preparing the next guidance step"}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {shouldShowUploadButton && (
+                <div className="flex justify-center">
+                  <Button type="button" variant="secondary" onClick={handleUploadClick}>
+                    <UploadCloud className="h-4 w-4" />
+                    Upload Passport
+                  </Button>
+                </div>
+              )}
+
+              {isComplete && (
+                <Card className="mx-auto max-w-lg text-center">
+                  <StatusBadge tone="emerald" icon={Sparkles}>
+                    Saved
+                  </StatusBadge>
+                  <h2 className="mt-4 text-xl font-bold text-slate-950">
+                    Visa review is ready
+                  </h2>
+                  <p className="mt-2 text-sm text-slate-600">
+                    Review the completed application summary before generating the PDF.
+                  </p>
+                  <Button as={Link} to="/review" className="mt-5">
+                    Review Application
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </Card>
+              )}
+
+              {statusMessage && (
+                <p className="text-center text-sm font-medium text-slate-600">
+                  {statusMessage}
+                </p>
+              )}
+
+              {errorMessage && (
+                <p className="text-center text-sm font-medium text-red-600">
+                  {errorMessage}
+                </p>
+              )}
+
+              <div ref={endRef} />
+            </div>
+          </div>
+
+          <div className="border-t border-slate-200/80 bg-white/90 px-4 py-4 sm:px-6">
+            <div className="mx-auto max-w-5xl">
+              {!isComplete && (
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {quickReplies.map((reply) => (
+                    <button
+                      key={reply}
+                      type="button"
+                      onClick={() => handleSend(reply)}
+                      disabled={disableInput}
+                      className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {reply}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {isListening && (
+                <div className="mb-3 flex items-center gap-3 rounded-2xl bg-indigo-50 px-4 py-3 text-sm text-indigo-700">
+                  <span className="relative flex h-3 w-3">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-400 opacity-75" />
+                    <span className="relative inline-flex h-3 w-3 rounded-full bg-indigo-600" />
                   </span>
+                  <Volume2 className="h-4 w-4" />
+                  {transcriptPreview || "Listening..."}
                 </div>
-              </div>
-            </div>
-          )}
+              )}
 
-          {shouldShowUploadButton && (
-            <div className="flex justify-center pt-2">
-              <button
-                type="button"
-                onClick={handleUploadClick}
-                disabled={isThinking || isSaving}
-                className="rounded-xl border border-slate-300 bg-white px-5 py-3 font-medium text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                Upload Passport
-              </button>
-            </div>
-          )}
-
-          {isComplete && (
-            <div className="flex justify-center pt-3">
-              <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-4 text-center shadow-sm">
+              <div className="flex items-center gap-3 rounded-3xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-200/70">
                 <button
                   type="button"
-                  onClick={handleDownloadPdf}
-                  disabled={isDownloadingPdf}
-                  className="w-full rounded-xl bg-slate-900 px-5 py-3 font-medium text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={handleUploadClick}
+                  disabled={disableInput}
+                  className="rounded-2xl p-3 text-slate-500 transition hover:bg-slate-100 hover:text-indigo-600 disabled:opacity-50"
+                  title="Upload passport"
                 >
-                  {isDownloadingPdf ? "Generating PDF..." : "Download PDF"}
+                  <UploadCloud className="h-5 w-5" />
+                </button>
+
+                <input
+                  type="text"
+                  placeholder={isComplete ? "Application complete" : "Type your message..."}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleSend();
+                    }
+                  }}
+                  disabled={disableInput}
+                  className="min-w-0 flex-1 bg-transparent px-1 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed"
+                />
+
+                <button
+                  type="button"
+                  onClick={handleVoiceInput}
+                  disabled={disableInput}
+                  className={[
+                    "rounded-2xl p-3 transition disabled:opacity-50",
+                    isListening
+                      ? "bg-red-50 text-red-600"
+                      : "text-slate-500 hover:bg-indigo-50 hover:text-indigo-600",
+                  ].join(" ")}
+                  title="Use voice input"
+                >
+                  {isListening ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSend()}
+                  disabled={disableInput || !input.trim()}
+                  className="rounded-2xl bg-indigo-600 p-3 text-white shadow-lg shadow-indigo-600/20 transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  title="Send message"
+                >
+                  <Send className="h-5 w-5" />
                 </button>
               </div>
+
+              <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
+                <FileText className="h-3.5 w-3.5" />
+                Your answers are saved locally during the flow and submitted when complete.
+              </div>
             </div>
-          )}
-
-          {statusMessage && (
-            <p className="text-center text-sm text-slate-600">
-              {statusMessage}
-            </p>
-          )}
-
-          {errorMessage && (
-            <p className="text-center text-sm text-red-600">
-              {errorMessage}
-            </p>
-          )}
-
-          <div ref={endRef} />
-        </div>
-      </div>
-
-      <div className="border-t border-slate-200 bg-white">
-        <div className="mx-auto w-full max-w-4xl px-4 py-4 flex gap-3">
-          <input
-            type="text"
-            placeholder={
-              isComplete
-                ? "Application complete"
-                : "Type your message..."
-            }
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                handleSend();
-              }
-            }}
-            disabled={disableInput}
-            className="flex-1 border border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-slate-900/15 focus:border-slate-400 disabled:bg-slate-50"
-          />
-
-          <button
-            type="button"
-            onClick={handleVoiceInput}
-            disabled={disableInput}
-            title="Use voice input"
-            className={[
-              "rounded-xl border px-4 font-medium disabled:cursor-not-allowed disabled:opacity-50",
-              isListening
-                ? "border-red-200 bg-red-50 text-red-700"
-                : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
-            ].join(" ")}
-          >
-            {isListening ? "Stop" : "Mic"}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleSend}
-            disabled={disableInput || !input.trim()}
-            className="bg-slate-900 text-white px-5 rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-800"
-          >
-            {isThinking ? "Sending..." : "Send"}
-          </button>
-        </div>
-      </div>
-    </div>
+          </div>
+        </section>
+      </main>
+    </AppShell>
   );
 }
 

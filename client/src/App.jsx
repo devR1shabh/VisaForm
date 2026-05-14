@@ -5,6 +5,7 @@ import UploadPassport from "./pages/UploadPassport";
 import ChatPage from "./pages/ChatPage";
 import ReviewPage from "./pages/ReviewPage";
 import ApplicantForm from "./pages/ApplicantForm";
+import SuccessPage from "./pages/SuccessPage";
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/review" element={<ReviewPage />} />
         <Route path="/form" element={<ApplicantForm />} />
+        <Route path="/success" element={<SuccessPage />} />
       </Routes>
     </BrowserRouter>
   );

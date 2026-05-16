@@ -83,7 +83,7 @@ function UploadPassport() {
       const imageBase64 = await fileToBase64(file);
 
       const response = await axios.post(
-        "http://localhost:5000/api/passport/extract-passport",
+        `${import.meta.env.VITE_API_URL}/api/passport/extract-passport`,
         {
           imageBase64,
           mimeType: file.type,

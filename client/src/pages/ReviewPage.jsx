@@ -70,7 +70,7 @@ function ReviewPage() {
 
     try {
       const response = await axios.post(
-        "http://localhost:5000/api/pdf/generate-pdf",
+        `${import.meta.env.VITE_API_URL}/api/pdf/generate-pdf`,
         applicationData,
         {
           responseType: "blob",

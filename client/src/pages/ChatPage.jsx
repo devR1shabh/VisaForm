@@ -310,7 +310,7 @@ function ChatPage() {
         : cleanupField(normalizedFieldValue);
 
     try {
-      const response = await axios.post("http://localhost:5000/api/chat", {
+      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/chat`, {
         message: displayValue,
         applicationData: {
           visaDetails: normalizedVisaDetails,
@@ -341,7 +341,7 @@ function ChatPage() {
 
     try {
       const response = await axios.post(
-        "http://localhost:5000/api/chat/save-application",
+        `${import.meta.env.VITE_API_URL}/api/chat/save-application`,
         { applicationData }
       );
 

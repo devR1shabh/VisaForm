@@ -89,17 +89,7 @@ function Home() {
               transition={{ duration: 0.55, ease: "easeOut" }}
               className="relative"
             >
-              <div className="absolute -left-8 top-12 hidden rounded-3xl bg-white p-4 shadow-xl shadow-indigo-200/50 ring-1 ring-slate-200 lg:block">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-2xl bg-emerald-100 p-2 text-emerald-600">
-                    <FileCheck2 className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">OCR Ready</p>
-                    <p className="text-xs text-slate-500">5 fields detected</p>
-                  </div>
-                </div>
-              </div>
+              
 
               <Card className="relative mx-auto max-w-xl p-5">
                 <div className="rounded-3xl bg-slate-950 p-5 text-white">

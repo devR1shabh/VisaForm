@@ -4,9 +4,20 @@ const notDetectedText = "Not detected";
 const smallWords = new Set(["and", "or", "of", "the", "a", "an", "in", "on", "at", "to", "for"]);
 
 export function cleanupField(value = "") {
-  return String(value)
+  const cleanedValue = String(value)
     .replace(/\s+/g, " ")
     .trim();
+
+  if (
+    !cleanedValue ||
+    cleanedValue.toLowerCase() === "not detected" ||
+    cleanedValue.toLowerCase() === "not provided" ||
+    cleanedValue.toLowerCase() === "unknown"
+  ) {
+    return "";
+  }
+
+  return cleanedValue;
 }
 
 export function titleCase(value = "") {

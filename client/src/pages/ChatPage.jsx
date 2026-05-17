@@ -36,6 +36,7 @@ import {
   validateCountry,
   validateDateOfBirth,
   validateDuration,
+  validateGender,
   validateName,
   validatePassport,
   validateTravelDate,
@@ -122,6 +123,7 @@ const steps = [
   key: "sex",
   target: "passportDetails",
   question: "Enter your gender. (Male, Female, or Other)",
+  validate: validateGender,
   manualPassportOnly: true,
 },
 

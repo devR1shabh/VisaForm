@@ -160,7 +160,10 @@ function loadDraft() {
 function hasRequiredPassportDetails(passportDetails) {
   return Boolean(
     cleanupField(passportDetails?.name) &&
-      cleanupField(passportDetails?.passportNumber)
+      cleanupField(passportDetails?.passportNumber) &&
+      cleanupField(passportDetails?.nationality) &&
+      cleanupField(passportDetails?.sex) &&
+      cleanupField(passportDetails?.dateOfBirth) 
   );
 }
 
@@ -168,6 +171,9 @@ function hasRequiredApplicationDetails(visaDetails, passportDetails) {
   return Boolean(
     cleanupField(passportDetails?.name) &&
       cleanupField(passportDetails?.passportNumber) &&
+      cleanupField(passportDetails?.nationality) &&
+      cleanupField(passportDetails?.sex) &&
+      cleanupField(passportDetails?.dateOfBirth) &&
       cleanupField(visaDetails?.destinationCountry) &&
       cleanupField(visaDetails?.visaType) &&
       cleanupField(visaDetails?.duration)

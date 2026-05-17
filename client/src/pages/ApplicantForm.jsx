@@ -143,14 +143,14 @@ function ApplicantForm() {
 
                 <label className="block">
                   <span className="mb-2 text-sm font-semibold text-slate-700">
-                    Sex
+                    Gender
                   </span>
                   <Select
                     name="sex"
                     value={formData.sex}
                     onChange={handleChange}
                   >
-                    <option value="">Select Sex</option>
+                    <option value="">Select Gender</option>
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
                   </Select>

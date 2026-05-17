@@ -76,13 +76,17 @@ function safeFallback(value = "", fallback = fallbackText) {
 }
 
 function normalizePassportDetails(passportDetails = {}) {
-  const sex = cleanupField(passportDetails.sex);
+  const gender = titleCase(
+    cleanupField(passportDetails.sex || passportDetails.gender)
+  );
 
   return {
     name: titleCase(passportDetails.name || passportDetails.fullName || ""),
     passportNumber: cleanupField(passportDetails.passportNumber).toUpperCase(),
     nationality: titleCase(passportDetails.nationality),
-    sex: ["Male", "Female"].includes(sex) ? sex : "",
+    sex: ["Male", "Female", "Other"].includes(gender)
+      ? gender
+      : "",
     dateOfBirth: cleanupField(passportDetails.dateOfBirth),
   };
 }

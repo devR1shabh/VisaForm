@@ -114,7 +114,7 @@ const steps = [
 {
   key: "sex",
   target: "passportDetails",
-  question: "Enter your sex. (Male or Female)",
+  question: "Enter your gender. (Male, Female, or Other)",
   manualPassportOnly: true,
 },
 
@@ -231,7 +231,7 @@ function formatPassportSummary(passportDetails) {
     `- **Name:** ${formatDetected(normalizedPassportDetails.name)}`,
     `- **Passport Number:** ${formatDetected(normalizedPassportDetails.passportNumber)}`,
     `- **Nationality:** ${formatDetected(normalizedPassportDetails.nationality)}`,
-    `- **Sex:** ${formatDetected(normalizedPassportDetails.sex)}`,
+    `- **Gender:** ${formatDetected(normalizedPassportDetails.sex)}`,
     `- **Date of Birth:** ${
       normalizedPassportDetails.dateOfBirth
         ? formatDate(normalizedPassportDetails.dateOfBirth)

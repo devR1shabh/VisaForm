@@ -146,7 +146,7 @@ router.post("/generate-pdf", async (req, res) => {
         safeFallback(passportDetails.passportNumber, "Not detected"),
       ],
       ["Nationality", safeFallback(passportDetails.nationality, "Not detected")],
-      ["Sex", safeFallback(passportDetails.sex, "Not detected")],
+      ["Gender", safeFallback(passportDetails.sex, "Not detected")],
       [
         "Date of Birth",
         passportDetails.dateOfBirth

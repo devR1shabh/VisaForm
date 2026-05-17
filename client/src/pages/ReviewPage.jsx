@@ -127,6 +127,9 @@ function ReviewPage() {
   const hasRequiredDetails = Boolean(
     cleanupField(passportDetails.name) &&
       cleanupField(passportDetails.passportNumber) &&
+      cleanupField(passportDetails.sex) &&
+      cleanupField(passportDetails.nationality) &&
+      cleanupField(passportDetails.dateOfBirth) &&
       cleanupField(visaDetails.destinationCountry) &&
       cleanupField(visaDetails.visaType) &&
       cleanupField(visaDetails.duration)

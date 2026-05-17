@@ -90,13 +90,18 @@ router.post("/generate-pdf", async (req, res) => {
     const { passportDetails, visaDetails, submittedAt } = applicationData;
 
     if (
+      !passportDetails.name ||
+      !passportDetails.passportNumber ||
+      !passportDetails.nationality ||
+      !passportDetails.sex ||
+      !passportDetails.dateOfBirth ||
       !visaDetails.destinationCountry ||
       !visaDetails.visaType ||
       !visaDetails.duration
     ) {
       return res.status(400).json({
         message:
-          "Destination country, visa type , and duration are required before generating a PDF.",
+          "Complete all Required passport and visa details before generating the PDF",
       });
     }
 

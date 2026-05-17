@@ -20,40 +20,38 @@ import {
   StatusBadge,
 } from "../components/ui";
 import { fadeUp } from "../components/animations";
-
 const features = [
   {
-    icon: ScanText,
-    title: "Passport OCR Extraction",
-    description: "Upload passport images and extract key applicant details with a conservative OCR flow.",
+    icon: UploadCloud,
+    title: "Passport Upload",
+    description: "Upload passport image securely.",
   },
   {
-    icon: MessageSquareText,
-    title: "AI Chat Guidance",
-    description: "A guided assistant collects destination, visa type, purpose, duration, and travel details.",
+    icon: Bot,
+    title: "AI Assistant",
+    description: "Guided visa application support.",
   },
   {
     icon: Mic,
-    title: "Voice Input Support",
-    description: "Use browser speech recognition to speak answers directly into the assistant.",
+    title: "Voice Support",
+    description: "Speak instead of typing.",
   },
   {
-    icon: WandSparkles,
-    title: "Smart Form Autofill",
-    description: "Extracted details flow into an editable confirmation form before submission.",
+    icon: FileCheck2,
+    title: "Auto Fill",
+    description: "Forms filled automatically.",
   },
   {
     icon: FileText,
-    title: "PDF Visa Generation",
-    description: "Generate a clean visa application summary PDF for the completed workflow.",
+    title: "PDF Export",
+    description: "Download completed application.",
   },
   {
     icon: Database,
-    title: "MongoDB Storage",
-    description: "Completed applications are saved with passport and visa details for demo persistence.",
+    title: "Data Storage",
+    description: "Application data saved securely.",
   },
 ];
-
 const workflow = ["Upload", "Extract", "Confirm", "Chat", "Generate PDF"];
 
 function Home() {
@@ -73,7 +71,7 @@ function Home() {
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Button as={Link} to="/chat">
-                  <Sparkles className="h-4 w-4" />
+                  
                   Start Application
                 </Button>
                 <Button as={Link} to="/upload" variant="secondary">

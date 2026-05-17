@@ -19,6 +19,7 @@ import {
 } from "../components/ui";
 import { fadeUp } from "../components/animations";
 import {
+  cleanupField,
   formatDate,
   normalizeApplicationData,
   safeFallback,
@@ -64,6 +65,11 @@ function ReviewPage() {
 
   const handleGeneratePdf = async () => {
     if (!applicationData || isGenerating) return;
+
+    if (!hasRequiredDetails) {
+      setError("Complete the required applicant and visa details before generating the PDF.");
+      return;
+    }
 
     setIsGenerating(true);
     setError("");
@@ -118,6 +124,13 @@ function ReviewPage() {
   }
 
   const { passportDetails, visaDetails, submittedAt } = applicationData;
+  const hasRequiredDetails = Boolean(
+    cleanupField(passportDetails.name) &&
+      cleanupField(passportDetails.passportNumber) &&
+      cleanupField(visaDetails.destinationCountry) &&
+      cleanupField(visaDetails.visaType) &&
+      cleanupField(visaDetails.duration)
+  );
 
   return (
     <AppShell>
@@ -140,7 +153,7 @@ function ReviewPage() {
                 <PencilLine className="h-4 w-4" />
                 Edit Application
               </Button>
-              <Button type="button" onClick={handleGeneratePdf} disabled={isGenerating}>
+              <Button type="button" onClick={handleGeneratePdf} disabled={isGenerating || !hasRequiredDetails}>
                 <Download className="h-4 w-4" />
                 Generate PDF
               </Button>
@@ -159,6 +172,12 @@ function ReviewPage() {
           {error && (
             <div className="mb-6 rounded-3xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
               {error}
+            </div>
+          )}
+
+          {!hasRequiredDetails && (
+            <div className="mb-6 rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+              Required details are missing: full name, passport number, destination country, visa type, and duration are needed before PDF generation.
             </div>
           )}
 
@@ -189,11 +208,8 @@ function ReviewPage() {
               rows={[
                 ["Destination Country", safeFallback(visaDetails.destinationCountry)],
                 ["Visa Type", safeFallback(visaDetails.visaType)],
-                ["Purpose of Visit", safeFallback(visaDetails.travelPurpose)],
                 ["Duration of Stay", safeFallback(visaDetails.duration)],
                 ["Travel Date", formatDate(visaDetails.travelDate)],
-                ["Accommodation Details", safeFallback(visaDetails.accommodationDetails)],
-                ["Additional Notes", safeFallback(visaDetails.additionalNotes)],
               ]}
             />
           </div>
@@ -208,7 +224,7 @@ function ReviewPage() {
                 Generate the final visa application PDF.
               </p>
             </div>
-            <Button type="button" variant="secondary" onClick={handleGeneratePdf} disabled={isGenerating}>
+            <Button type="button" variant="secondary" onClick={handleGeneratePdf} disabled={isGenerating || !hasRequiredDetails}>
               {isGenerating ? "Generating..." : "Generate PDF"}
             </Button>
           </Card>

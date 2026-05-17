@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
@@ -27,12 +27,18 @@ import {
   cleanupField,
   formatDate,
   formatDetected,
-  isValidHtmlDate,
   normalizeApplicationData,
   normalizePassportDetails,
-  normalizeVisaDetails,
   safeFallback,
+  titleCase,
 } from "../utils/formatters";
+import {
+  validateCountry,
+  validateDuration,
+  validateName,
+  validatePassport,
+  validateTravelDate,
+} from "../utils/validators";
 
 const STORAGE_KEY = "visaAssistantDraft";
 const FINAL_APPLICATION_KEY = "visaAssistantFinalApplication";
@@ -40,11 +46,8 @@ const FINAL_APPLICATION_KEY = "visaAssistantFinalApplication";
 const initialVisaDetails = {
   destinationCountry: "",
   visaType: "",
-  travelPurpose: "",
   duration: "",
   travelDate: "",
-  accommodationDetails: "",
-  additionalNotes: "",
 };
 
 const emptyPassportDetails = {
@@ -56,26 +59,50 @@ const emptyPassportDetails = {
 };
 
 const steps = [
-  { key: "destinationCountry", question: "Which country are you planning to visit?" },
+  {
+    key: "destinationCountry",
+    target: "visaDetails",
+    question: "Which country are you planning to visit?",
+    validate: validateCountry,
+  },
   {
     key: "visaType",
-    question: "What type of visa do you need? For example, tourist, student, work, or business.",
+    target: "visaDetails",
+    question:
+      "What type of visa are you applying for? Examples: Tourist, Student, Work, Business, Transit, or others.",
+    normalize: titleCase,
   },
-  { key: "travelPurpose", question: "What is the main purpose of your travel?" },
-  { key: "duration", question: "How long do you plan to stay?" },
+  {
+    key: "duration",
+    target: "visaDetails",
+    question: "How long do you plan to stay? (in days)",
+    validate: validateDuration,
+  },
   {
     key: "travelDate",
-    question: "What is your planned travel date? Use YYYY-MM-DD if known, or type not sure.",
+    target: "visaDetails",
+    question: 'What is your planned travel date?\n(Use YYYY-MM-DD format or type "Not sure")',
+    validate: validateTravelDate,
   },
   {
     key: "passportUpload",
-    question: "Would you like to upload your passport now? You can type yes, upload it with the button, or no to continue.",
+    question:
+      "Do you want to upload your passport now? Type yes to upload it, or no to enter passport details manually.",
   },
   {
-    key: "accommodationDetails",
-    question: "Please share your accommodation details, such as hotel name, host address, or city of stay.",
+    key: "name",
+    target: "passportDetails",
+    question: "Enter the full name as shown on the passport.",
+    validate: validateName,
+    manualPassportOnly: true,
   },
-  { key: "additionalNotes", question: "Any additional notes for this application? Type no if there are none." },
+  {
+    key: "passportNumber",
+    target: "passportDetails",
+    question: "Enter the passport number.",
+    validate: validatePassport,
+    manualPassportOnly: true,
+  },
 ];
 
 const CHAT_DEBUG_STORAGE_KEY = "visaAssistantDebug";
@@ -117,21 +144,56 @@ function loadDraft() {
         ...emptyPassportDetails,
         ...(savedDraft.passportDetails || {}),
       },
+      passportSkipped: Boolean(savedDraft.passportSkipped),
       stepIndex: Math.min(Math.max(savedStepIndex, 0), steps.length),
     };
   } catch {
     return {
       visaDetails: initialVisaDetails,
       passportDetails: emptyPassportDetails,
+      passportSkipped: false,
       stepIndex: 0,
     };
   }
 }
 
-function hasPassportDetails(passportDetails) {
-  return Object.values(passportDetails || {}).some((value) =>
-    String(value || "").trim()
+function hasRequiredPassportDetails(passportDetails) {
+  return Boolean(
+    cleanupField(passportDetails?.name) &&
+      cleanupField(passportDetails?.passportNumber)
   );
+}
+
+function hasRequiredApplicationDetails(visaDetails, passportDetails) {
+  return Boolean(
+    cleanupField(passportDetails?.name) &&
+      cleanupField(passportDetails?.passportNumber) &&
+      cleanupField(visaDetails?.destinationCountry) &&
+      cleanupField(visaDetails?.visaType) &&
+      cleanupField(visaDetails?.duration)
+  );
+}
+
+function getNextStepIndex(currentStepIndex, passportDetails, passportSkipped) {
+  for (let index = currentStepIndex + 1; index < steps.length; index += 1) {
+    const step = steps[index];
+
+    if (step.key === "passportUpload" && hasRequiredPassportDetails(passportDetails)) {
+      continue;
+    }
+
+    if (step.manualPassportOnly && !passportSkipped) {
+      continue;
+    }
+
+    if (step.manualPassportOnly && hasRequiredPassportDetails(passportDetails)) {
+      continue;
+    }
+
+    return index;
+  }
+
+  return steps.length;
 }
 
 function formatPassportSummary(passportDetails) {
@@ -163,11 +225,8 @@ ${formatPassportSummary(passportDetails)}
 ## Visa Details
 - **Destination Country:** ${safeFallback(visaDetails.destinationCountry)}
 - **Visa Type:** ${safeFallback(visaDetails.visaType)}
-- **Travel Purpose:** ${safeFallback(visaDetails.travelPurpose)}
 - **Duration of Stay:** ${safeFallback(visaDetails.duration)}
 - **Travel Date:** ${formatDate(visaDetails.travelDate)}
-- **Accommodation Details:** ${safeFallback(visaDetails.accommodationDetails)}
-- **Additional Notes:** ${safeFallback(visaDetails.additionalNotes)}
 - **Submitted At:** ${formatDate(String(submittedAt).slice(0, 10))}
 `;
 }
@@ -177,37 +236,38 @@ function ChatPage() {
   const navigate = useNavigate();
   const restoredDraft = useMemo(() => loadDraft(), []);
   const incomingPassportData = location.state?.passportData;
+  const restoredPassportDetails = {
+    ...restoredDraft.passportDetails,
+    ...(incomingPassportData || {}),
+  };
   const startStepIndex =
     incomingPassportData && steps[restoredDraft.stepIndex]?.key === "passportUpload"
-      ? restoredDraft.stepIndex + 1
+      ? getNextStepIndex(restoredDraft.stepIndex, restoredPassportDetails, false)
       : restoredDraft.stepIndex;
 
   const [stepIndex, setStepIndex] = useState(startStepIndex);
   const [visaDetails, setVisaDetails] = useState(restoredDraft.visaDetails);
-  const [passportDetails] = useState({
-    ...restoredDraft.passportDetails,
-    ...(incomingPassportData || {}),
-  });
+  const [passportDetails, setPassportDetails] = useState(restoredPassportDetails);
+  const [passportSkipped, setPassportSkipped] = useState(
+    incomingPassportData ? false : restoredDraft.passportSkipped
+  );
   const [messages, setMessages] = useState(() => {
-    const openingMessages = [
-      createMessage(
-        "ai",
-        "Hello! I will guide you step by step through your visa application."
-      ),
-    ];
+    const openingMessages = [];
 
     if (incomingPassportData) {
       openingMessages.push(
         createMessage(
           "ai",
-          `Great! I've saved your passport details. Please continue with the remaining visa details.\n\n${formatPassportSummary(incomingPassportData)}`
+          `Passport details saved.\n\n${formatPassportSummary(incomingPassportData)}`
         )
       );
     }
 
-    openingMessages.push(
-      createMessage("ai", steps[startStepIndex]?.question || steps[0].question)
-    );
+    if (steps[startStepIndex]?.question) {
+      openingMessages.push(createMessage("ai", steps[startStepIndex].question));
+    } else {
+      openingMessages.push(createMessage("ai", "All required details are ready."));
+    }
 
     return openingMessages;
   });
@@ -221,14 +281,14 @@ function ChatPage() {
   const [isListening, setIsListening] = useState(false);
 
   const endRef = useRef(null);
+  const inputRef = useRef(null);
   const recognitionRef = useRef(null);
   const stepIndexRef = useRef(startStepIndex);
   const visaDetailsRef = useRef(restoredDraft.visaDetails);
-  const passportDetailsRef = useRef({
-    ...restoredDraft.passportDetails,
-    ...(incomingPassportData || {}),
-  });
+  const passportDetailsRef = useRef(restoredPassportDetails);
+  const passportSkippedRef = useRef(incomingPassportData ? false : restoredDraft.passportSkipped);
   const isProcessingRef = useRef(false);
+  const autoCompleteRef = useRef(false);
   const markdownPlugins = useMemo(() => [remarkGfm], []);
 
   useEffect(() => {
@@ -244,27 +304,38 @@ function ChatPage() {
   }, [passportDetails]);
 
   useEffect(() => {
+    passportSkippedRef.current = passportSkipped;
+  }, [passportSkipped]);
+
+  useEffect(() => {
     const draft = {
       visaDetails,
       passportDetails,
+      passportSkipped,
       stepIndex,
     };
 
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
-  }, [visaDetails, passportDetails, stepIndex]);
+  }, [visaDetails, passportDetails, passportSkipped, stepIndex]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({
       behavior: "smooth",
       block: "end",
     });
-  }, [messages.length, isThinking, isComplete, statusMessage]);
+  }, [messages.length, isThinking, isComplete, statusMessage, errorMessage]);
 
-  const appendAssistantMessage = (text) => {
+  useEffect(() => {
+    if (!isThinking && !isSaving && !isComplete) {
+      inputRef.current?.focus();
+    }
+  }, [messages.length, isThinking, isSaving, isComplete, stepIndex]);
+
+  const appendAssistantMessage = useCallback((text) => {
     setMessages((prev) => [...prev, createMessage("ai", text)]);
-  };
+  }, []);
 
-  const appendAssistantMessages = (texts) => {
+  const appendAssistantMessages = useCallback((texts) => {
     const validTexts = texts.filter((text) => String(text || "").trim());
     if (!validTexts.length) return;
 
@@ -272,63 +343,16 @@ function ChatPage() {
       ...prev,
       ...validTexts.map((text) => createMessage("ai", text)),
     ]);
-  };
+  }, []);
 
-  const buildImmediateAcknowledgement = (message, currentStep, nextVisaDetails) => {
-    if (currentStep.key === "travelDate") {
-      const dateValue = nextVisaDetails.travelDate
-        ? formatDate(nextVisaDetails.travelDate)
-        : "not sure";
-      return `Noted. I have recorded your travel date as ${dateValue}.`;
+  const completeApplication = useCallback(async (nextVisaDetails, nextPassportDetails) => {
+    if (!hasRequiredApplicationDetails(nextVisaDetails, nextPassportDetails)) {
+      appendAssistantMessage(
+        "Required details are still missing. Please complete your name, passport number, destination country, visa type, and stay duration."
+      );
+      return;
     }
 
-    const acknowledgements = {
-      destinationCountry: "Understood. I have recorded your destination country.",
-      visaType: "Noted. I have recorded the visa type.",
-      travelPurpose: "Thank you. I have recorded your travel purpose.",
-      duration: "Noted. I have recorded your duration of stay.",
-      accommodationDetails: "Thanks. I have recorded your accommodation details.",
-      additionalNotes: "Noted. I have recorded your additional notes.",
-    };
-
-    return acknowledgements[currentStep.key] || `Noted. I have recorded ${message}.`;
-  };
-
-  const getAcknowledgement = async (
-    message,
-    nextVisaDetails,
-    activeStepIndex,
-    nextPassportDetails
-  ) => {
-    const normalizedVisaDetails = normalizeVisaDetails(nextVisaDetails);
-    const normalizedPassportDetails = normalizePassportDetails(nextPassportDetails);
-    const currentKey = steps[activeStepIndex]?.key;
-    const normalizedFieldValue = normalizedVisaDetails[currentKey] || message;
-    const displayValue =
-      currentKey === "travelDate"
-        ? formatDate(normalizedVisaDetails.travelDate)
-        : cleanupField(normalizedFieldValue);
-
-    try {
-      const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/chat`, {
-        message: displayValue,
-        applicationData: {
-          visaDetails: normalizedVisaDetails,
-          passportDetails: normalizedPassportDetails,
-        },
-      }, { timeout: 8000 });
-
-      const reply = response.data.reply || "Noted.";
-      debugChatWorkflow("assistant reply generated", { reply });
-      return reply;
-    } catch {
-      const fallbackReply = "Noted. I have recorded that.";
-      debugChatWorkflow("assistant reply generated", { reply: fallbackReply });
-      return fallbackReply;
-    }
-  };
-
-  const completeApplication = async (nextVisaDetails, nextPassportDetails) => {
     const applicationData = normalizeApplicationData({
       visaDetails: nextVisaDetails,
       passportDetails: nextPassportDetails,
@@ -371,22 +395,33 @@ function ChatPage() {
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [appendAssistantMessage]);
+
+  useEffect(() => {
+    if (
+      autoCompleteRef.current ||
+      !incomingPassportData ||
+      startStepIndex < steps.length
+    ) {
+      return;
+    }
+
+    autoCompleteRef.current = true;
+    void completeApplication(visaDetailsRef.current, passportDetailsRef.current);
+  }, [completeApplication, incomingPassportData, startStepIndex]);
 
   const moveToNextStep = async (
     currentStepIndex,
     nextVisaDetails,
     nextPassportDetails,
-    assistantMessages = []
+    assistantMessages = [],
+    nextPassportSkipped = passportSkippedRef.current
   ) => {
-    let nextStepIndex = currentStepIndex + 1;
-
-    if (
-      steps[nextStepIndex]?.key === "passportUpload" &&
-      hasPassportDetails(nextPassportDetails)
-    ) {
-      nextStepIndex += 1;
-    }
+    const nextStepIndex = getNextStepIndex(
+      currentStepIndex,
+      nextPassportDetails,
+      nextPassportSkipped
+    );
 
     debugChatWorkflow("next step selected", {
       currentStep: steps[currentStepIndex]?.key,
@@ -415,32 +450,47 @@ function ChatPage() {
     const normalizedAnswer = answer.trim().toLowerCase();
 
     if (["yes", "y", "upload", "sure", "ok", "okay"].includes(normalizedAnswer)) {
-      await moveToNextStep(
-        activeStepIndex,
-        currentVisaDetails,
-        currentPassportDetails,
-        [
-          "Great. You can use the upload shortcut below now, or continue and add passport details later.",
-        ]
-      );
+      setPassportSkipped(false);
+      navigate("/upload");
       return;
     }
 
     if (["no", "n", "skip"].includes(normalizedAnswer)) {
+      setPassportSkipped(true);
       await moveToNextStep(
         activeStepIndex,
         currentVisaDetails,
         currentPassportDetails,
-        [
-          "No problem. You can continue and add passport details manually later if needed.",
-        ]
+        [],
+        true
       );
       return;
     }
 
-    appendAssistantMessage(
-      "Please type yes to upload your passport now, or no to continue without uploading."
-    );
+    appendAssistantMessages([
+      "Please type yes to upload your passport, or no to enter details manually.",
+      steps[activeStepIndex].question,
+    ]);
+  };
+
+  const validateStepValue = (step, value) => {
+    if (!step.validate) {
+      const cleanedValue = cleanupField(value);
+
+      if (!cleanedValue) {
+        return {
+          isValid: false,
+          message: "This field is required.",
+        };
+      }
+
+      return {
+        isValid: true,
+        value: step.normalize ? step.normalize(cleanedValue) : cleanedValue,
+      };
+    }
+
+    return step.validate(value);
   };
 
   const handleSend = async (forcedValue) => {
@@ -479,18 +529,6 @@ function ChatPage() {
       return;
     }
 
-    if (currentStep.key === "travelDate") {
-      const dateValue = trimmedInput.toLowerCase();
-      const isUnknownDate = ["not sure", "unknown", "no", "n/a", "na"].includes(dateValue);
-
-      if (!isUnknownDate && !isValidHtmlDate(trimmedInput)) {
-        appendAssistantMessage(
-          "Please enter the travel date as YYYY-MM-DD, or type not sure."
-        );
-        return;
-      }
-    }
-
     isProcessingRef.current = true;
     setIsThinking(true);
 
@@ -505,40 +543,41 @@ function ChatPage() {
         return;
       }
 
-      const nextVisaDetails = {
-        ...currentVisaDetails,
-        [currentStep.key]:
-          currentStep.key === "travelDate" &&
-          ["not sure", "unknown", "no", "n/a", "na"].includes(trimmedInput.toLowerCase())
-            ? ""
-            : trimmedInput,
-      };
+      const validation = validateStepValue(currentStep, trimmedInput);
+
+      if (!validation.isValid) {
+        appendAssistantMessages([validation.message, currentStep.question]);
+        return;
+      }
+
+      const nextVisaDetails =
+        currentStep.target === "visaDetails"
+          ? {
+              ...currentVisaDetails,
+              [currentStep.key]: validation.value,
+            }
+          : currentVisaDetails;
+      const nextPassportDetails =
+        currentStep.target === "passportDetails"
+          ? {
+              ...currentPassportDetails,
+              [currentStep.key]: validation.value,
+            }
+          : currentPassportDetails;
 
       setVisaDetails(nextVisaDetails);
-
-      const acknowledgement = buildImmediateAcknowledgement(
-        trimmedInput,
-        currentStep,
-        nextVisaDetails
-      );
-      debugChatWorkflow("assistant reply generated", { reply: acknowledgement });
-
-      void getAcknowledgement(
-        trimmedInput,
-        nextVisaDetails,
-        activeStepIndex,
-        currentPassportDetails
-      );
+      setPassportDetails(nextPassportDetails);
 
       await moveToNextStep(
         activeStepIndex,
         nextVisaDetails,
-        currentPassportDetails,
-        [acknowledgement]
+        nextPassportDetails,
+        []
       );
     } finally {
       isProcessingRef.current = false;
       setIsThinking(false);
+      window.setTimeout(() => inputRef.current?.focus(), 0);
     }
   };
 
@@ -610,37 +649,8 @@ function ChatPage() {
 
   return (
     <AppShell showFooter={false}>
-      <main className="grid min-h-[calc(100vh-73px)] grid-cols-1 lg:grid-cols-[320px_1fr]">
-        <aside className="hidden border-r border-slate-200/80 bg-white/65 p-6 lg:block">
-          <StatusBadge>Workflow</StatusBadge>
-          <h1 className="mt-5 text-2xl font-bold text-slate-950">
-            AI Visa Assistant
-          </h1>
-          <p className="mt-3 text-sm leading-6 text-slate-600">
-            Complete the visa workflow through a guided chat experience.
-          </p>
-
-          <div className="mt-8 space-y-3">
-            {steps.map((step, index) => (
-              <div
-                key={step.key}
-                className={[
-                  "rounded-2xl border p-3 text-sm",
-                  index === stepIndex
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-                    : index < stepIndex
-                      ? "border-emerald-100 bg-emerald-50 text-emerald-800"
-                      : "border-slate-200 bg-white text-slate-500",
-                ].join(" ")}
-              >
-                <span className="font-semibold">{index + 1}.</span>{" "}
-                {step.key === "passportUpload" ? "Passport upload" : step.question}
-              </div>
-            ))}
-          </div>
-        </aside>
-
-        <section className="flex min-h-0 flex-col">
+      <main className="flex h-screen max-h-[calc(100vh-73px)] min-h-0 flex-col">
+        <section className="flex min-h-0 flex-1 flex-col">
           <div className="border-b border-slate-200/80 bg-white px-4 py-4 sm:px-6">
             <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -648,7 +658,7 @@ function ChatPage() {
                   <Bot className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="font-bold text-slate-950">Visa AI Co-Pilot</p>
+                  <p className="font-bold text-slate-950">Visa Application</p>
                   <p className="text-xs text-slate-500">
                     {isListening
                       ? "Listening..."
@@ -668,8 +678,8 @@ function ChatPage() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-4 py-6 sm:px-6">
-            <div className="mx-auto max-w-5xl space-y-4">
+          <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+            <div className="mx-auto max-w-5xl space-y-3">
               {messages.map((msg, index) => (
                 <ChatBubble
                   key={`${msg.sender}-${index}`}
@@ -696,8 +706,8 @@ function ChatPage() {
                     exit={{ opacity: 0, y: 8 }}
                   >
                     <LoadingState
-                      title={isSaving ? "Saving application..." : "AI assistant is typing..."}
-                      description={isSaving ? "Storing submitted data in MongoDB" : "Preparing the next guidance step"}
+                      title={isSaving ? "Saving application..." : "Processing..."}
+                      description={isSaving ? "Storing submitted data" : "Moving to the next step"}
                     />
                   </motion.div>
                 )}
@@ -746,7 +756,7 @@ function ChatPage() {
             </div>
           </div>
 
-          <div className="border-t border-slate-200/80 bg-white/90 px-4 py-4 sm:px-6">
+          <div className="sticky bottom-0 border-t border-slate-200/80 bg-white/90 px-4 py-4 sm:px-6">
             <div className="mx-auto max-w-5xl">
               {isListening && (
                 <div className="mb-3 flex items-center gap-3 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
@@ -771,6 +781,7 @@ function ChatPage() {
                 </button>
 
                 <input
+                  ref={inputRef}
                   type="text"
                   placeholder={isComplete ? "Application complete" : "Type your message..."}
                   value={input}

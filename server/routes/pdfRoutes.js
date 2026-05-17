@@ -10,9 +10,9 @@ const {
 const router = express.Router();
 
 const pageMargin = 54;
-const labelWidth = 165;
-const valueWidth = 320;
-const rowGap = 14;
+const labelWidth = 190;
+const valueWidth = 300;
+const rowGap = 18;
 
 function drawDivider(doc) {
   const y = doc.y;
@@ -25,13 +25,13 @@ function drawDivider(doc) {
     .stroke();
 
   doc.strokeColor("#000000");
-  doc.y = y + 10;
+  doc.y = y + 12;
 }
 
 function drawHeader(doc, applicationData) {
   doc
     .font("Helvetica-Bold")
-    .fontSize(20)
+    .fontSize(22)
     .fillColor("#111827")
     .text("Visa Application Summary", {
       align: "center",
@@ -41,7 +41,7 @@ function drawHeader(doc, applicationData) {
 
   doc
     .font("Helvetica")
-    .fontSize(10)
+    .fontSize(9)
     .fillColor("#4B5563")
     .text(
       `Application ID: ${safeFallback(
@@ -55,7 +55,7 @@ function drawHeader(doc, applicationData) {
 
   doc
     .font("Helvetica")
-    .fontSize(10)
+    .fontSize(9)
     .fillColor("#4B5563")
     .text(
       `Submission Date: ${formatDate(
@@ -68,13 +68,13 @@ function drawHeader(doc, applicationData) {
 
   doc
     .font("Helvetica")
-    .fontSize(10)
+    .fontSize(9)
     .fillColor("#4B5563")
     .text("Status: Submitted", {
       align: "center",
     });
 
-  doc.moveDown(0.8);
+  doc.moveDown(0.9);
 
   drawDivider(doc);
 
@@ -82,15 +82,15 @@ function drawHeader(doc, applicationData) {
 }
 
 function drawSection(doc, title, rows) {
-  doc.moveDown(0.4);
+  doc.moveDown(0.5);
 
   doc
     .font("Helvetica-Bold")
-    .fontSize(13)
+    .fontSize(14)
     .fillColor("#111827")
     .text(title);
 
-  doc.moveDown(0.2);
+  doc.moveDown(0.25);
 
   drawDivider(doc);
 
@@ -98,7 +98,7 @@ function drawSection(doc, title, rows) {
     drawRow(doc, label, value);
   });
 
-  doc.moveDown(0.4);
+  doc.moveDown(0.5);
 }
 
 function drawRow(doc, label, value) {
@@ -107,19 +107,13 @@ function drawRow(doc, label, value) {
 
   const normalizedValue = safeFallback(value);
 
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(10.5)
-    .fillColor("#111827");
+  doc.font("Helvetica-Bold").fontSize(10.5);
 
-  const labelHeight = doc.heightOfString(`${label}:`, {
+  const labelHeight = doc.heightOfString(${label}:, {
     width: labelWidth,
   });
 
-  doc
-    .font("Helvetica")
-    .fontSize(10.5)
-    .fillColor("#111827");
+  doc.font("Helvetica").fontSize(10.5);
 
   const valueHeight = doc.heightOfString(normalizedValue, {
     width: valueWidth,
@@ -129,7 +123,7 @@ function drawRow(doc, label, value) {
     .font("Helvetica-Bold")
     .fontSize(10.5)
     .fillColor("#111827")
-    .text(`${label}:`, x, y, {
+    .text(${label}:, x, y, {
       width: labelWidth,
     });
 
@@ -139,14 +133,14 @@ function drawRow(doc, label, value) {
     .fillColor("#111827")
     .text(normalizedValue, x + labelWidth, y, {
       width: valueWidth,
-      lineGap: 1,
+      lineGap: 2,
     });
 
   doc.y = y + Math.max(labelHeight, valueHeight) + rowGap;
 }
 
 function drawFooter(doc) {
-  const footerY = doc.page.height - 45;
+  const footerY = doc.page.height - 35;
 
   doc
     .moveTo(pageMargin, footerY - 10)

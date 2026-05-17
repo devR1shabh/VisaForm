@@ -269,10 +269,7 @@ export function Footer() {
   return (
     <footer className="border-t border-slate-200/80 bg-white/75 px-4 py-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-4 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-2 font-semibold text-slate-700">
-          <FileText className="h-4 w-4 text-indigo-600" />
-          AI-Based Visa Form Assistant
-        </div>
+        
         <div className="flex gap-4">
           <a href="#" className="hover:text-indigo-600">GitHub</a>
           <a href="#" className="hover:text-indigo-600">Demo</a>

@@ -185,10 +185,7 @@ function Home() {
         <Section className="pt-4">
           <div className="grid items-center gap-8 lg:grid-cols-[0.85fr_1.15fr]">
             <Card>
-              <StatusBadge>
-                <Bot className="h-3.5 w-3.5" />
-                AI Co-Pilot
-              </StatusBadge>
+              
               <h2 className="mt-5 text-3xl font-bold text-slate-950">
                 Conversational help through every step
               </h2>

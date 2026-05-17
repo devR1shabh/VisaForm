@@ -91,12 +91,12 @@ router.post("/generate-pdf", async (req, res) => {
 
     if (
       !visaDetails.destinationCountry ||
-      !visaDetails.travelPurpose ||
+      !visaDetails.visaType ||
       !visaDetails.duration
     ) {
       return res.status(400).json({
         message:
-          "Destination country, travel purpose, and duration are required before generating a PDF.",
+          "Destination country, visa type , and duration are required before generating a PDF.",
       });
     }
 

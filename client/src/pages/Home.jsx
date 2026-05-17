@@ -200,20 +200,44 @@ function Home() {
               </Button>
             </Card>
             <Card className="bg-gradient-to-br from-indigo-600 to-sky-600 text-white">
-              <div className="grid gap-4 sm:grid-cols-2">
-                {[
-                  "Conversational guidance",
-                  "Step-by-step assistance",
-                  "Intelligent autofill",
-                  "Upload help",
-                ].map((item) => (
-                  <div key={item} className="rounded-2xl bg-white/12 p-4">
-                    
-                    <p className="font-semibold">{item}</p>
-                  </div>
-                ))}
-              </div>
-            </Card>
+  <div className="grid gap-4 sm:grid-cols-2">
+    {[
+      {
+        title: "Conversational guidance",
+        icon: MessageSquareText,
+      },
+      {
+        title: "Step-by-step assistance",
+        icon: Bot,
+      },
+      {
+        title: "Intelligent autofill",
+        icon: FileText,
+      },
+      {
+        title: "Upload help",
+        icon: UploadCloud,
+      },
+    ].map((item) => {
+      const Icon = item.icon;
+
+      return (
+        <div
+          key={item.title}
+          className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm transition hover:bg-white/15"
+        >
+          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-white/15">
+            <Icon className="h-5 w-5 text-white" />
+          </div>
+
+          <p className="font-semibold tracking-wide">
+            {item.title}
+          </p>
+        </div>
+      );
+    })}
+  </div>
+</Card>
           </div>
         </Section>
       </main>

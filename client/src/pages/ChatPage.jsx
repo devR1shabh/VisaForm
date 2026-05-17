@@ -103,6 +103,27 @@ const steps = [
     validate: validatePassport,
     manualPassportOnly: true,
   },
+  {
+  key: "nationality",
+  target: "passportDetails",
+  question: "Enter your nationality.",
+  manualPassportOnly: true,
+},
+
+{
+  key: "sex",
+  target: "passportDetails",
+  question: "Enter your sex. (Male or Female)",
+  manualPassportOnly: true,
+},
+
+{
+  key: "dateOfBirth",
+  target: "passportDetails",
+  question: "Enter your date of birth in YYYY-MM-DD format.",
+  validate: validateTravelDate,
+  manualPassportOnly: true,
+},
 ];
 
 const CHAT_DEBUG_STORAGE_KEY = "visaAssistantDebug";

@@ -161,7 +161,6 @@ router.post("/generate-pdf", async (req, res) => {
       ["Purpose of Visit", safeFallback(visaDetails.travelPurpose)],
       ["Duration of Stay", safeFallback(visaDetails.duration)],
       ["Travel Date", formatDate(visaDetails.travelDate)],
-      ["Accommodation Details", safeFallback(visaDetails.accommodationDetails)],
       ["Additional Notes", safeFallback(visaDetails.additionalNotes)],
     ]);
 

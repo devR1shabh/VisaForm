@@ -115,7 +115,6 @@ export function normalizeVisaDetails(visaDetails = {}) {
     travelPurpose: titleCase(visaDetails.travelPurpose),
     duration: titleCase(visaDetails.duration),
     travelDate: cleanupField(visaDetails.travelDate),
-    accommodationDetails: titleCase(visaDetails.accommodationDetails),
     additionalNotes: titleCase(visaDetails.additionalNotes),
   };
 }

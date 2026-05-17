@@ -86,6 +86,13 @@ const steps = [
     validate: validateTravelDate,
   },
   {
+    key: "additionalNotes",
+    target: "visaDetails",
+    question:
+      'Any additional notes for this application? Type "No" if there are none.',
+    normalize: titleCase,
+  },
+  {
     key: "passportUpload",
     question:
       "Do you want to upload your passport now? Type yes to upload it, or no to enter passport details manually.",

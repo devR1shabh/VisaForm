@@ -8,9 +8,9 @@ import {
   MessageSquareText,
   Mic,
   ScanText,
-  Sparkles,
+  
   UploadCloud,
-  WandSparkles,
+  
 } from "lucide-react";
 import {
   AppShell,
@@ -208,7 +208,7 @@ function Home() {
                   "Upload help",
                 ].map((item) => (
                   <div key={item} className="rounded-2xl bg-white/12 p-4">
-                    <Sparkles className="mb-3 h-5 w-5 text-indigo-100" />
+                    
                     <p className="font-semibold">{item}</p>
                   </div>
                 ))}

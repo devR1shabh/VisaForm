@@ -102,7 +102,7 @@ function ApplicantForm() {
               <div className="grid gap-5 md:grid-cols-2">
                 <label className="block">
                   <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
-                    <UserRound className="h-4 w-4 text-indigo-500" />
+                    <UserRound className="h-4 w-4 text-emerald-700" />
                     Name
                   </span>
                   <Input
@@ -116,7 +116,7 @@ function ApplicantForm() {
 
                 <label className="block">
                   <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
-                    <IdCard className="h-4 w-4 text-indigo-500" />
+                    <IdCard className="h-4 w-4 text-emerald-700" />
                     Passport Number
                   </span>
                   <Input
@@ -158,7 +158,7 @@ function ApplicantForm() {
 
                 <label className="block md:col-span-2">
                   <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
-                    <Calendar className="h-4 w-4 text-indigo-500" />
+                    <Calendar className="h-4 w-4 text-emerald-700" />
                     Date of Birth
                   </span>
                   <Input
@@ -181,17 +181,17 @@ function ApplicantForm() {
               </div>
             </Card>
 
-            <Card className="h-fit bg-gradient-to-br from-slate-950 to-indigo-950 text-white">
+            <Card className="h-fit bg-slate-900 text-white">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10">
-                <Bot className="h-6 w-6 text-indigo-200" />
+                <Bot className="h-6 w-6 text-emerald-200" />
               </div>
               <h2 className="mt-5 text-xl font-bold">
                 AI helper
               </h2>
-              <p className="mt-3 text-sm leading-6 text-indigo-100">
+              <p className="mt-3 text-sm leading-6 text-slate-200">
                 Please verify your extracted details before continuing. Missing fields are okay for this demo, but incorrect fields should be corrected now.
               </p>
-              <div className="mt-6 rounded-2xl bg-white/10 p-4 text-sm text-indigo-50">
+              <div className="mt-6 rounded-2xl bg-white/10 p-4 text-sm text-slate-100">
                 The assistant will use these confirmed passport details when saving the final application and generating the PDF.
               </div>
             </Card>

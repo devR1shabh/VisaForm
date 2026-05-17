@@ -3,7 +3,6 @@ import { motion } from "framer-motion";
 import {
   Bot,
   CheckCircle2,
-  FileText,
   Menu,
   Sparkles,
   X,
@@ -20,12 +19,12 @@ export function Button({
 }) {
   const variants = {
     primary:
-      "bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 hover:bg-indigo-700",
+      "bg-emerald-600 text-white shadow-md shadow-slate-200/70 hover:bg-emerald-700",
     secondary:
       "bg-white text-slate-900 border border-slate-200 shadow-sm hover:bg-slate-50",
     ghost: "text-slate-700 hover:bg-slate-100",
     success:
-      "bg-emerald-600 text-white shadow-lg shadow-emerald-600/20 hover:bg-emerald-700",
+      "bg-emerald-600 text-white shadow-md shadow-slate-200/70 hover:bg-emerald-700",
   };
 
   return (
@@ -46,7 +45,7 @@ export function Card({ children, className = "" }) {
   return (
     <div
       className={[
-        "rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-xl shadow-slate-200/60 backdrop-blur",
+        "rounded-3xl border border-slate-200/80 bg-white p-6 shadow-lg shadow-slate-200/60",
         className,
       ].join(" ")}
     >
@@ -59,7 +58,7 @@ export function Input({ className = "", ...props }) {
   return (
     <input
       className={[
-        "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-indigo-300 focus:ring-4 focus:ring-indigo-100",
+        "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100",
         className,
       ].join(" ")}
       {...props}
@@ -71,7 +70,7 @@ export function Select({ className = "", children, ...props }) {
   return (
     <select
       className={[
-        "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-indigo-300 focus:ring-4 focus:ring-indigo-100",
+        "w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none transition focus:border-emerald-600 focus:ring-4 focus:ring-emerald-100",
         className,
       ].join(" ")}
       {...props}
@@ -94,7 +93,7 @@ export function Section({ eyebrow, title, description, children, className = "",
             className="mx-auto mb-10 max-w-3xl text-center"
           >
             {eyebrow && (
-              <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-indigo-600">
+              <p className="mb-3 text-sm font-semibold uppercase tracking-[0.18em] text-emerald-700">
                 {eyebrow}
               </p>
             )}
@@ -116,9 +115,8 @@ export function Section({ eyebrow, title, description, children, className = "",
   );
 }
 
-export function StatusBadge({ children, tone = "indigo", icon: Icon = Sparkles }) {
+export function StatusBadge({ children, tone = "emerald", icon: Icon = Sparkles }) {
   const tones = {
-    indigo: "bg-indigo-50 text-indigo-700 ring-indigo-100",
     emerald: "bg-emerald-50 text-emerald-700 ring-emerald-100",
     amber: "bg-amber-50 text-amber-700 ring-amber-100",
     slate: "bg-slate-100 text-slate-700 ring-slate-200",
@@ -128,7 +126,7 @@ export function StatusBadge({ children, tone = "indigo", icon: Icon = Sparkles }
     <span
       className={[
         "inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ring-1",
-        tones[tone],
+        tones[tone] || tones.emerald,
       ].join(" ")}
     >
       <Icon className="h-3.5 w-3.5" />
@@ -139,11 +137,11 @@ export function StatusBadge({ children, tone = "indigo", icon: Icon = Sparkles }
 
 export function LoadingState({ title = "Processing...", description }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-indigo-800">
-      <div className="h-5 w-5 animate-spin rounded-full border-2 border-indigo-200 border-t-indigo-600" />
+    <div className="flex items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-emerald-800">
+      <div className="h-5 w-5 animate-spin rounded-full border-2 border-emerald-200 border-t-emerald-600" />
       <div>
         <p className="text-sm font-semibold">{title}</p>
-        {description && <p className="text-xs text-indigo-700">{description}</p>}
+        {description && <p className="text-xs text-emerald-700">{description}</p>}
       </div>
     </div>
   );
@@ -162,7 +160,7 @@ export function ChatBubble({ sender, children, timestamp }) {
         className={[
           "max-w-[86%] rounded-3xl px-4 py-3 text-sm shadow-sm sm:max-w-[72%]",
           isUser
-            ? "rounded-br-md bg-indigo-600 text-white"
+            ? "rounded-br-md bg-emerald-700 text-white"
             : "rounded-bl-md border border-slate-200 bg-white text-slate-900",
         ].join(" ")}
       >
@@ -171,7 +169,7 @@ export function ChatBubble({ sender, children, timestamp }) {
           <div
             className={[
               "mt-2 text-[10px]",
-              isUser ? "text-indigo-100" : "text-slate-400",
+              isUser ? "text-emerald-50" : "text-slate-400",
             ].join(" ")}
           >
             {timestamp}
@@ -184,7 +182,7 @@ export function ChatBubble({ sender, children, timestamp }) {
 
 export function AppShell({ children, showFooter = true }) {
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_#dbeafe,_transparent_34%),linear-gradient(180deg,_#f8fbff_0%,_#eef4ff_100%)] text-slate-950">
+    <div className="min-h-screen bg-slate-50 text-slate-950">
       <Navbar />
       {children}
       {showFooter && <Footer />}
@@ -202,10 +200,10 @@ export function Navbar() {
   ];
 
   return (
-    <header className="sticky top-0 z-40 border-b border-white/70 bg-white/80 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-slate-200 bg-white">
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
         <Link to="/" className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/25">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-md shadow-slate-200">
             <Bot className="h-5 w-5" />
           </div>
           <div>
@@ -271,9 +269,9 @@ export function Footer() {
       <div className="mx-auto flex max-w-7xl flex-col gap-4 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
         
         <div className="flex gap-4">
-          <a href="#" className="hover:text-indigo-600">GitHub</a>
-          <a href="#" className="hover:text-indigo-600">Demo</a>
-          <Link to="/chat" className="hover:text-indigo-600">Start</Link>
+          <a href="https://github.com/devR1shabh/VisaForm" className="hover:text-emerald-700">GitHub</a>
+          <a href="https://visa-form-mu.vercel.app/" className="hover:text-emerald-700">Demo</a>
+          <Link to="/chat" className="hover:text-emerald-700">Start</Link>
         </div>
       </div>
     </footer>

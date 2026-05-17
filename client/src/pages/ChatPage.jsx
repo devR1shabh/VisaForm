@@ -627,7 +627,7 @@ function ChatPage() {
                 className={[
                   "rounded-2xl border p-3 text-sm",
                   index === stepIndex
-                    ? "border-indigo-200 bg-indigo-50 text-indigo-900"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-900"
                     : index < stepIndex
                       ? "border-emerald-100 bg-emerald-50 text-emerald-800"
                       : "border-slate-200 bg-white text-slate-500",
@@ -641,10 +641,10 @@ function ChatPage() {
         </aside>
 
         <section className="flex min-h-0 flex-col">
-          <div className="border-b border-slate-200/80 bg-white/80 px-4 py-4 backdrop-blur sm:px-6">
+          <div className="border-b border-slate-200/80 bg-white px-4 py-4 sm:px-6">
             <div className="mx-auto flex max-w-5xl items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-600/20">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-white shadow-md shadow-slate-200">
                   <Bot className="h-5 w-5" />
                 </div>
                 <div>
@@ -749,10 +749,10 @@ function ChatPage() {
           <div className="border-t border-slate-200/80 bg-white/90 px-4 py-4 sm:px-6">
             <div className="mx-auto max-w-5xl">
               {isListening && (
-                <div className="mb-3 flex items-center gap-3 rounded-2xl bg-indigo-50 px-4 py-3 text-sm text-indigo-700">
+                <div className="mb-3 flex items-center gap-3 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
                   <span className="relative flex h-3 w-3">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-indigo-400 opacity-75" />
-                    <span className="relative inline-flex h-3 w-3 rounded-full bg-indigo-600" />
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex h-3 w-3 rounded-full bg-emerald-600" />
                   </span>
                   <Volume2 className="h-4 w-4" />
                   {transcriptPreview || "Listening..."}
@@ -764,7 +764,7 @@ function ChatPage() {
                   type="button"
                   onClick={handleUploadClick}
                   disabled={disableInput}
-                  className="rounded-2xl p-3 text-slate-500 transition hover:bg-slate-100 hover:text-indigo-600 disabled:opacity-50"
+                  className="rounded-2xl p-3 text-slate-500 transition hover:bg-slate-100 hover:text-emerald-700 disabled:opacity-50"
                   title="Upload passport"
                 >
                   <UploadCloud className="h-5 w-5" />
@@ -792,7 +792,7 @@ function ChatPage() {
                     "rounded-2xl p-3 transition disabled:opacity-50",
                     isListening
                       ? "bg-red-50 text-red-600"
-                      : "text-slate-500 hover:bg-indigo-50 hover:text-indigo-600",
+                      : "text-slate-500 hover:bg-emerald-50 hover:text-emerald-700",
                   ].join(" ")}
                   title="Use voice input"
                 >
@@ -803,7 +803,7 @@ function ChatPage() {
                   type="button"
                   onClick={() => handleSend()}
                   disabled={disableInput || !input.trim()}
-                  className="rounded-2xl bg-indigo-600 p-3 text-white shadow-lg shadow-indigo-600/20 transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-2xl bg-emerald-600 p-3 text-white shadow-md shadow-slate-200 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                   title="Send message"
                 >
                   <Send className="h-5 w-5" />

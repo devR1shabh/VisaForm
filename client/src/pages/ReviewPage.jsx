@@ -198,9 +198,9 @@ function ReviewPage() {
             />
           </div>
 
-          <Card className="mt-6 flex flex-col gap-4 bg-gradient-to-r from-indigo-600 to-sky-600 text-white sm:flex-row sm:items-center sm:justify-between">
+          <Card className="mt-6 flex flex-col gap-4 bg-slate-900 text-white sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="flex items-center gap-2 text-sm font-semibold text-indigo-100">
+              <div className="flex items-center gap-2 text-sm font-semibold text-emerald-200">
                 <Sparkles className="h-4 w-4" />
                 Final step
               </div>

@@ -7,7 +7,6 @@ import {
   FileText,
   MessageSquareText,
   Mic,
-  ScanText,
   
   UploadCloud,
   
@@ -93,7 +92,7 @@ function Home() {
                 <div className="rounded-3xl bg-slate-950 p-5 text-white">
                   <div className="mb-5 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-indigo-500">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-600">
                         <Bot className="h-5 w-5" />
                       </div>
                       <div>
@@ -108,12 +107,12 @@ function Home() {
                     <div className="max-w-[82%] rounded-2xl rounded-bl-md bg-white/10 px-4 py-3 text-sm">
                       Great, I can help with your visa application. Upload your passport to begin.
                     </div>
-                    <div className="ml-auto max-w-[74%] rounded-2xl rounded-br-md bg-indigo-500 px-4 py-3 text-sm">
+                    <div className="ml-auto max-w-[74%] rounded-2xl rounded-br-md bg-emerald-700 px-4 py-3 text-sm">
                       I want to apply for a work visa to Canada.
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                       <div className="mb-3 flex items-center gap-2 text-sm font-semibold">
-                        <UploadCloud className="h-4 w-4 text-indigo-300" />
+                        <UploadCloud className="h-4 w-4 text-emerald-300" />
                         Passport Upload
                       </div>
                       <div className="grid grid-cols-3 gap-2 text-xs text-slate-300">
@@ -146,8 +145,8 @@ function Home() {
                   {...fadeUp}
                   transition={{ ...fadeUp.transition, delay: index * 0.04 }}
                 >
-                  <Card className="h-full transition hover:-translate-y-1 hover:shadow-2xl hover:shadow-indigo-100">
-                    <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
+                  <Card className="h-full transition hover:-translate-y-1 hover:shadow-xl hover:shadow-slate-200/80">
+                    <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
                       <Icon className="h-6 w-6" />
                     </div>
                     <h3 className="text-lg font-bold text-slate-950">{feature.title}</h3>
@@ -169,7 +168,7 @@ function Home() {
             <div className="grid gap-5 md:grid-cols-5">
               {workflow.map((step, index) => (
                 <div key={step} className="relative text-center">
-                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-600 text-sm font-bold text-white shadow-lg shadow-indigo-600/20">
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-900 text-sm font-bold text-white shadow-md shadow-slate-200">
                     {index + 1}
                   </div>
                   <p className="mt-3 text-sm font-semibold text-slate-900">{step}</p>
@@ -196,7 +195,8 @@ function Home() {
                 Open Assistant
               </Button>
             </Card>
-            <Card className="bg-gradient-to-br from-indigo-600 to-sky-600 text-white">
+
+            <Card className="bg-slate-900 text-white p-6">
   <div className="grid gap-4 sm:grid-cols-2">
     {[
       {
@@ -221,13 +221,13 @@ function Home() {
       return (
         <div
           key={item.title}
-          className="rounded-2xl border border-white/10 bg-white/10 p-4 backdrop-blur-sm transition hover:bg-white/15"
+          className="rounded-2xl border border-slate-700 bg-slate-800/70 p-5 transition hover:bg-slate-800"
         >
-          <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-white/15">
-            <Icon className="h-5 w-5 text-white" />
+          <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-600/20">
+            <Icon className="h-5 w-5 text-emerald-400" />
           </div>
 
-          <p className="font-semibold tracking-wide">
+          <p className="text-sm font-semibold text-white">
             {item.title}
           </p>
         </div>
@@ -235,6 +235,7 @@ function Home() {
     })}
   </div>
 </Card>
+      
           </div>
         </Section>
       </main>

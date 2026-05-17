@@ -150,11 +150,11 @@ function UploadPassport() {
                 className={[
                   "flex min-h-[280px] cursor-pointer flex-col items-center justify-center rounded-3xl border-2 border-dashed p-8 text-center transition",
                   isDragging
-                    ? "border-indigo-400 bg-indigo-50"
-                    : "border-slate-200 bg-slate-50/80 hover:border-indigo-300 hover:bg-indigo-50/50",
+                    ? "border-emerald-500 bg-emerald-50"
+                    : "border-slate-200 bg-slate-50/80 hover:border-emerald-300 hover:bg-emerald-50/50",
                 ].join(" ")}
               >
-                <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-white text-indigo-600 shadow-lg shadow-slate-200">
+                <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-white text-emerald-700 shadow-md shadow-slate-200">
                   <UploadCloud className="h-8 w-8" />
                 </div>
                 <p className="text-lg font-bold text-slate-950">
@@ -241,7 +241,7 @@ function UploadPassport() {
                   <h2 className="font-bold text-slate-950">Preview</h2>
                   <p className="text-sm text-slate-500">Selected passport image</p>
                 </div>
-                <FileImage className="h-5 w-5 text-indigo-500" />
+                <FileImage className="h-5 w-5 text-emerald-700" />
               </div>
 
               {imagePreview ? (

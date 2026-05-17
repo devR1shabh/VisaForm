@@ -32,12 +32,15 @@ import {
   safeFallback,
   titleCase,
 } from "../utils/formatters";
+import { countries } from "../data/countries";
+import { nationalities } from "../data/nationalities";
 import {
   validateCountry,
   validateDateOfBirth,
   validateDuration,
   validateGender,
   validateName,
+  validateNationality,
   validatePassport,
   validateTravelDate,
 } from "../utils/validators";
@@ -65,6 +68,7 @@ const steps = [
     key: "destinationCountry",
     target: "visaDetails",
     question: "Which country are you planning to visit?",
+    searchableOptions: countries,
     validate: validateCountry,
   },
   {
@@ -113,11 +117,13 @@ const steps = [
     manualPassportOnly: true,
   },
   {
-  key: "nationality",
-  target: "passportDetails",
-  question: "Enter your nationality.",
-  manualPassportOnly: true,
-},
+    key: "nationality",
+    target: "passportDetails",
+    question: "Select your nationality.",
+    searchableOptions: nationalities,
+    validate: validateNationality,
+    manualPassportOnly: true,
+  },
 
 {
   key: "sex",
@@ -476,6 +482,8 @@ function ChatPage() {
     }
 
     setStepIndex(nextStepIndex);
+    setInput("");
+    setErrorMessage("");
     appendAssistantMessages([...assistantMessages, steps[nextStepIndex].question]);
   };
 
@@ -685,7 +693,24 @@ function ChatPage() {
     steps[stepIndex]?.key === "passportUpload" && !isComplete;
   const currentStep = steps[stepIndex];
   const hasStepOptions = Boolean(currentStep?.options?.length);
-  const disableTextInput = disableInput || hasStepOptions;
+  const hasSearchableOptions = Boolean(currentStep?.searchableOptions?.length);
+  const disableTextInput =
+    disableInput || hasStepOptions || hasSearchableOptions;
+  const filteredSearchOptions = useMemo(() => {
+    if (!hasSearchableOptions) {
+      return [];
+    }
+
+    const query = cleanupField(input).toLowerCase();
+
+    if (!query) {
+      return [];
+    }
+
+    return currentStep.searchableOptions
+      .filter((option) => option.toLowerCase().includes(query))
+      .slice(0, 8);
+  }, [currentStep, hasSearchableOptions, input]);
 
   return (
     <AppShell showFooter={false}>
@@ -814,6 +839,46 @@ function ChatPage() {
                 </div>
               )}
 
+              {hasSearchableOptions && (
+                <div className="mb-3">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                    <input
+                      type="text"
+                      value={input}
+                      onChange={(e) => setInput(e.target.value)}
+                      disabled={disableInput}
+                      placeholder={
+                        currentStep.key === "destinationCountry"
+                          ? "Search countries..."
+                          : "Search nationalities..."
+                      }
+                      className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed"
+                    />
+                    {input.trim() && (
+                      <div className="mt-2 max-h-48 overflow-y-auto rounded-xl border border-slate-200">
+                        {filteredSearchOptions.length > 0 ? (
+                          filteredSearchOptions.map((option) => (
+                            <button
+                              key={option}
+                              type="button"
+                              onClick={() => handleSend(option)}
+                              disabled={disableInput}
+                              className="block w-full border-b border-slate-100 px-4 py-2.5 text-left text-sm font-medium text-slate-700 transition last:border-b-0 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {option}
+                            </button>
+                          ))
+                        ) : (
+                          <p className="px-4 py-2.5 text-sm text-slate-500">
+                            No matches found. Select a valid option from the list.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {isListening && (
                 <div className="mb-3 flex items-center gap-3 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
                   <span className="relative flex h-3 w-3">
@@ -825,6 +890,7 @@ function ChatPage() {
                 </div>
               )}
 
+              {!hasSearchableOptions && (
               <div className="flex items-center gap-3 rounded-3xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-200/70">
                 <button
                   type="button"
@@ -876,6 +942,7 @@ function ChatPage() {
                   <Send className="h-5 w-5" />
                 </button>
               </div>
+              )}
 
               <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
                 <FileText className="h-3.5 w-3.5" />

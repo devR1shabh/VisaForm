@@ -1,22 +1,48 @@
-import { getNames } from "country-list";
+import { countries } from "../data/countries";
+import { nationalities } from "../data/nationalities";
 import { cleanupField, titleCase } from "./formatters";
 
-const countryNames = new Set(getNames().map((name) => name.toLowerCase()));
 const notSureValues = new Set(["not sure", "unsure", "unknown"]);
 
-export function validateCountry(value = "") {
-  const cleanedValue = cleanupField(value);
+function findCanonicalOption(value, options) {
+  const cleanedValue = cleanupField(value).toLowerCase();
 
-  if (!cleanedValue || !countryNames.has(cleanedValue.toLowerCase())) {
+  if (!cleanedValue) {
+    return "";
+  }
+
+  return options.find((option) => option.toLowerCase() === cleanedValue) || "";
+}
+
+export function validateCountry(value = "") {
+  const match = findCanonicalOption(value, countries);
+
+  if (!match) {
     return {
       isValid: false,
-      message: "Enter a valid country name.",
+      message: "Please select a valid country.",
     };
   }
 
   return {
     isValid: true,
-    value: titleCase(cleanedValue),
+    value: match,
+  };
+}
+
+export function validateNationality(value = "") {
+  const match = findCanonicalOption(value, nationalities);
+
+  if (!match) {
+    return {
+      isValid: false,
+      message: "Please select a valid nationality.",
+    };
+  }
+
+  return {
+    isValid: true,
+    value: match,
   };
 }
 

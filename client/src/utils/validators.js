@@ -112,3 +112,45 @@ export function validateTravelDate(value = "") {
     value: cleanedValue,
   };
 }
+
+export function validateDateOfBirth(value = "") {
+  const cleanedValue = cleanupField(value);
+
+  const dateMatch = cleanedValue.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  if (!dateMatch) {
+    return {
+      isValid: false,
+      message: "Use YYYY-MM-DD format.",
+    };
+  }
+
+  const [, year, month, day] = dateMatch;
+  const date = new Date(`${year}-${month}-${day}T00:00:00`);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.getFullYear() !== Number(year) ||
+    date.getMonth() + 1 !== Number(month) ||
+    date.getDate() !== Number(day)
+  ) {
+    return {
+      isValid: false,
+      message: "Enter a valid date of birth.",
+    };
+  }
+
+  if (date >= today) {
+    return {
+      isValid: false,
+      message: "Date of birth must be in the past.",
+    };
+  }
+
+  return {
+    isValid: true,
+    value: cleanedValue,
+  };
+}

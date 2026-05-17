@@ -34,6 +34,7 @@ import {
 } from "../utils/formatters";
 import {
   validateCountry,
+  validateDateOfBirth,
   validateDuration,
   validateName,
   validatePassport,
@@ -121,7 +122,7 @@ const steps = [
   key: "dateOfBirth",
   target: "passportDetails",
   question: "Enter your date of birth in YYYY-MM-DD format.",
-  validate: validateTravelDate,
+  validate: validateDateOfBirth,
   manualPassportOnly: true,
 },
 ];

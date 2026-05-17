@@ -122,7 +122,8 @@ const steps = [
 {
   key: "sex",
   target: "passportDetails",
-  question: "Enter your gender. (Male, Female, or Other)",
+  question: "Select your gender.",
+  options: ["Male", "Female", "Other"],
   validate: validateGender,
   manualPassportOnly: true,
 },
@@ -683,6 +684,8 @@ function ChatPage() {
   const shouldShowUploadButton =
     steps[stepIndex]?.key === "passportUpload" && !isComplete;
   const currentStep = steps[stepIndex];
+  const hasStepOptions = Boolean(currentStep?.options?.length);
+  const disableTextInput = disableInput || hasStepOptions;
 
   return (
     <AppShell showFooter={false}>
@@ -795,6 +798,22 @@ function ChatPage() {
 
           <div className="sticky bottom-0 border-t border-slate-200/80 bg-white/90 px-4 py-4 sm:px-6">
             <div className="mx-auto max-w-5xl">
+              {hasStepOptions && (
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {currentStep.options.map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      onClick={() => handleSend(option)}
+                      disabled={disableInput}
+                      className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {isListening && (
                 <div className="mb-3 flex items-center gap-3 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
                   <span className="relative flex h-3 w-3">
@@ -828,7 +847,7 @@ function ChatPage() {
                       handleSend();
                     }
                   }}
-                  disabled={disableInput}
+                  disabled={disableTextInput}
                   className="min-w-0 flex-1 bg-transparent px-1 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed"
                 />
 
@@ -850,7 +869,7 @@ function ChatPage() {
                 <button
                   type="button"
                   onClick={() => handleSend()}
-                  disabled={disableInput || !input.trim()}
+                  disabled={disableTextInput || !input.trim()}
                   className="rounded-2xl bg-emerald-600 p-3 text-white shadow-md shadow-slate-200 transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
                   title="Send message"
                 >

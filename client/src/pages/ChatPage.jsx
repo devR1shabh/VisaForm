@@ -341,6 +341,14 @@ function hasRequiredApplicationDetails(visaDetails, passportDetails) {
   );
 }
 
+function isPassportStepAnswered(step, passportDetails) {
+  if (!step.manualPassportOnly) {
+    return false;
+  }
+
+  return Boolean(getStepAnswerValue(step, {}, passportDetails));
+}
+
 function getNextStepIndex(
   currentStepIndex,
   passportDetails,
@@ -358,12 +366,14 @@ function getNextStepIndex(
       continue;
     }
 
-    if (step.manualPassportOnly && !passportSkipped) {
-      continue;
-    }
+    if (step.manualPassportOnly) {
+      if (isPassportStepAnswered(step, passportDetails)) {
+        continue;
+      }
 
-    if (step.manualPassportOnly && hasRequiredPassportDetails(passportDetails)) {
-      continue;
+      if (!passportSkipped) {
+        continue;
+      }
     }
 
     return index;
@@ -425,19 +435,44 @@ function resolveInitialChatState(
     };
   }
 
-  let stepIndex =
-    incomingPassportData && steps[restoredDraft.stepIndex]?.key === "passportUpload"
-      ? getNextStepIndex(restoredDraft.stepIndex, restoredPassportDetails, false)
-      : restoredDraft.stepIndex;
+  const returningFromPassportHandoff =
+    incomingPassportData && steps[restoredDraft.stepIndex]?.key === "passportUpload";
 
-  if (stepIndex >= steps.length) {
+  let stepIndex = returningFromPassportHandoff
+    ? getNextStepIndex(
+        restoredDraft.stepIndex,
+        restoredPassportDetails,
+        true
+      )
+    : restoredDraft.stepIndex;
+
+  if (stepIndex > steps.length) {
     stepIndex = steps.length - 1;
+  }
+
+  const passportSkippedForProgression = returningFromPassportHandoff
+    ? true
+    : restoredDraft.passportSkipped;
+
+  if (stepIndex < steps.length) {
+    const resumedStep = steps[stepIndex];
+
+    if (
+      resumedStep?.manualPassportOnly &&
+      isPassportStepAnswered(resumedStep, restoredPassportDetails)
+    ) {
+      stepIndex = getNextStepIndex(
+        stepIndex,
+        restoredPassportDetails,
+        passportSkippedForProgression
+      );
+    }
   }
 
   return {
     visaDetails: restoredDraft.visaDetails,
     passportDetails: restoredPassportDetails,
-    passportSkipped: incomingPassportData ? false : restoredDraft.passportSkipped,
+    passportSkipped: passportSkippedForProgression,
     stepIndex,
   };
 }

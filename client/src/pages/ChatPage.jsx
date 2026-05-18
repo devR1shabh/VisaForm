@@ -330,33 +330,31 @@ function ChatDatePicker({ stepKey, disabled, onSelectDate }) {
   const [pickerDate, setPickerDate] = useState(null);
   const isDateOfBirth = stepKey === "dateOfBirth";
 
-  useEffect(() => {
-    setPickerDate(null);
-  }, [stepKey]);
-
   return (
-    <DatePicker
-      selected={pickerDate}
-      onChange={(date) => setPickerDate(date)}
-      onSelect={(date) => {
-        if (date && !disabled) {
-          onSelectDate(formatDateToYmd(date));
+    <div className="w-full [&_.react-datepicker-wrapper]:w-full">
+      <DatePicker
+        selected={pickerDate}
+        onChange={(date) => setPickerDate(date)}
+        onSelect={(date) => {
+          if (date && !disabled) {
+            onSelectDate(formatDateToYmd(date));
+          }
+        }}
+        showMonthDropdown
+        showYearDropdown
+        dropdownMode="select"
+        maxDate={isDateOfBirth ? today : undefined}
+        minDate={!isDateOfBirth ? today : undefined}
+        dateFormat="dd MMM yyyy"
+        placeholderText={
+          isDateOfBirth ? "Select date of birth" : "Select travel date"
         }
-      }}
-      showMonthDropdown
-      showYearDropdown
-      dropdownMode="select"
-      maxDate={isDateOfBirth ? today : undefined}
-      minDate={!isDateOfBirth ? today : undefined}
-      dateFormat="dd MMM yyyy"
-      placeholderText={
-        isDateOfBirth ? "Select date of birth" : "Select travel date"
-      }
-      disabled={disabled}
-      shouldCloseOnSelect
-      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-50"
-      calendarClassName="visa-chat-datepicker"
-    />
+        disabled={disabled}
+        shouldCloseOnSelect
+        className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-50"
+        calendarClassName="visa-chat-datepicker"
+      />
+    </div>
   );
 }
 
@@ -1021,7 +1019,39 @@ function ChatPage() {
                 </div>
               )}
 
-              {!hasSearchableOptions && (
+              {isDateStep && (
+                <div className="mb-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                  <div
+                    className={
+                      currentStep.key === "travelDate"
+                        ? "flex flex-col gap-3 sm:flex-row sm:items-end"
+                        : ""
+                    }
+                  >
+                    <div className="min-w-0 flex-1">
+                      <ChatDatePicker
+                        key={currentStep.key}
+                        stepKey={currentStep.key}
+                        disabled={disableInput}
+                        onSelectDate={handleSend}
+                      />
+                    </div>
+                    {currentStep.key === "travelDate" && (
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        disabled={disableInput}
+                        onClick={() => handleSend("Not sure")}
+                        className="shrink-0"
+                      >
+                        Not Sure Yet
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {!hasSearchableOptions && !isDateStep && (
               <div className="flex items-center gap-3 rounded-3xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-200/70">
                 <button
                   type="button"
@@ -1033,57 +1063,20 @@ function ChatPage() {
                   <UploadCloud className="h-5 w-5" />
                 </button>
 
-                {currentStep?.key === "dateOfBirth" ? (
-                 <input
-    type="date"
-    max={new Date().toISOString().split("T")[0]}
-    value={input}
-    onChange={(e) => {
-      setInput(e.target.value);
-      handleSend(e.target.value);
-    }}
-    disabled={disableInput}
-    className="min-w-0 flex-1 bg-transparent px-1 py-3 text-sm text-slate-900 outline-none disabled:cursor-not-allowed"
-  />
-) : currentStep?.key === "travelDate" ? (
-  <div className="flex flex-1 items-center gap-2">
-    <input
-      type="date"
-      min={new Date().toISOString().split("T")[0]}
-      value={input === "Not sure" ? "" : input}
-      onChange={(e) => {
-        setInput(e.target.value);
-        handleSend(e.target.value);
-      }}
-      disabled={disableInput}
-      className="min-w-0 flex-1 bg-transparent px-1 py-3 text-sm text-slate-900 outline-none disabled:cursor-not-allowed"
-    />
-
-    <Button
-      type="button"
-      variant="secondary"
-      disabled={disableInput}
-      onClick={() => handleSend("Not sure")}
-    >
-      Not Sure Yet
-    </Button>
-  </div>
-) : (
-  <input
-    ref={inputRef}
-    type="text"
-    placeholder={isComplete ? "Application complete" : "Type your message..."}
-    value={input}
-    onChange={(e) => setInput(e.target.value)}
-    onKeyDown={(e) => {
-      if (e.key === "Enter") {
-        handleSend();
-      }
-    }}
-    disabled={disableTextInput}
-    className="min-w-0 flex-1 bg-transparent px-1 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed"
-  />
-)}
+                <input
+                  ref={inputRef}
+                  type="text"
+                  placeholder={isComplete ? "Application complete" : "Type your message..."}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      handleSend();
+                    }
+                  }}
+                  disabled={disableTextInput}
+                  className="min-w-0 flex-1 bg-transparent px-1 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed"
+                />
 
                 <button
                   type="button"

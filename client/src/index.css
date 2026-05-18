@@ -47,3 +47,25 @@ html {
   border-left: 3px solid rgb(226 232 240);
   color: rgb(71 85 105);
 }
+
+.visa-chat-datepicker {
+  border: 1px solid rgb(226 232 240);
+  border-radius: 0.75rem;
+  font-family: inherit;
+  box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.08);
+}
+
+.visa-chat-datepicker .react-datepicker__header {
+  background: rgb(248 250 252);
+  border-bottom: 1px solid rgb(226 232 240);
+}
+
+.visa-chat-datepicker .react-datepicker__day--selected,
+.visa-chat-datepicker .react-datepicker__day--keyboard-selected {
+  background-color: rgb(5 150 105);
+  color: white;
+}
+
+.visa-chat-datepicker .react-datepicker__day:hover {
+  background-color: rgb(241 245 249);
+}

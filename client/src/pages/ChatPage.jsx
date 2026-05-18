@@ -87,7 +87,7 @@ const steps = [
   {
     key: "travelDate",
     target: "visaDetails",
-    question: 'What is your planned travel date?\n(Use YYYY-MM-DD format or type "Not sure")',
+    question: 'Select your planned travel date or chose "Not sure Yet")',
     validate: validateTravelDate,
   },
   {
@@ -137,7 +137,7 @@ const steps = [
 {
   key: "dateOfBirth",
   target: "passportDetails",
-  question: "Enter your date of birth in YYYY-MM-DD format.",
+  question: "Select your date of birth",
   validate: validateDateOfBirth,
   manualPassportOnly: true,
 },
@@ -902,20 +902,57 @@ function ChatPage() {
                   <UploadCloud className="h-5 w-5" />
                 </button>
 
-                <input
-                  ref={inputRef}
-                  type="text"
-                  placeholder={isComplete ? "Application complete" : "Type your message..."}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      handleSend();
-                    }
-                  }}
-                  disabled={disableTextInput}
-                  className="min-w-0 flex-1 bg-transparent px-1 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed"
-                />
+                {currentStep?.key === "dateOfBirth" ? (
+                 <input
+    type="date"
+    max={new Date().toISOString().split("T")[0]}
+    value={input}
+    onChange={(e) => {
+      setInput(e.target.value);
+      handleSend(e.target.value);
+    }}
+    disabled={disableInput}
+    className="min-w-0 flex-1 bg-transparent px-1 py-3 text-sm text-slate-900 outline-none disabled:cursor-not-allowed"
+  />
+) : currentStep?.key === "travelDate" ? (
+  <div className="flex flex-1 items-center gap-2">
+    <input
+      type="date"
+      min={new Date().toISOString().split("T")[0]}
+      value={input === "Not sure" ? "" : input}
+      onChange={(e) => {
+        setInput(e.target.value);
+        handleSend(e.target.value);
+      }}
+      disabled={disableInput}
+      className="min-w-0 flex-1 bg-transparent px-1 py-3 text-sm text-slate-900 outline-none disabled:cursor-not-allowed"
+    />
+
+    <Button
+      type="button"
+      variant="secondary"
+      disabled={disableInput}
+      onClick={() => handleSend("Not sure")}
+    >
+      Not Sure Yet
+    </Button>
+  </div>
+) : (
+  <input
+    ref={inputRef}
+    type="text"
+    placeholder={isComplete ? "Application complete" : "Type your message..."}
+    value={input}
+    onChange={(e) => setInput(e.target.value)}
+    onKeyDown={(e) => {
+      if (e.key === "Enter") {
+        handleSend();
+      }
+    }}
+    disabled={disableTextInput}
+    className="min-w-0 flex-1 bg-transparent px-1 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 disabled:cursor-not-allowed"
+  />
+)}
 
                 <button
                   type="button"

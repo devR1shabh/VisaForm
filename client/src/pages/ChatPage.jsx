@@ -11,7 +11,6 @@ import {
   FileText,
   Mic,
   MicOff,
-  Pencil,
   Send,
   Sparkles,
   UploadCloud,
@@ -56,6 +55,7 @@ const initialVisaDetails = {
   visaType: "",
   duration: "",
   travelDate: "",
+  additionalNotes: "",
 };
 
 const emptyPassportDetails = {
@@ -147,33 +147,24 @@ const steps = [
 ];
 
 const CHAT_DEBUG_STORAGE_KEY = "visaAssistantDebug";
-const EDIT_COMMANDS = new Set(["edit", "change", "modify"]);
-const CANCEL_CORRECTION_COMMANDS = new Set([
-  "cancel",
-  "back",
-  "nevermind",
-  "never mind",
-]);
 
-const EDIT_FIELD_LABELS = {
-  destinationCountry: "Destination Country",
+const CASCADE_RESET_KEYS = new Set(["destinationCountry", "visaType"]);
+
+const EDIT_CHIP_LABELS = {
+  destinationCountry: "Destination",
   visaType: "Visa Type",
   duration: "Duration",
   travelDate: "Travel Date",
-  additionalNotes: "Additional Notes",
-  name: "Full Name",
-  passportNumber: "Passport Number",
+  additionalNotes: "Notes",
+  name: "Name",
+  passportNumber: "Passport",
   nationality: "Nationality",
   sex: "Gender",
   dateOfBirth: "Date of Birth",
 };
 
-function isEditCommand(value = "") {
-  return EDIT_COMMANDS.has(value.trim().toLowerCase());
-}
-
-function isCancelCorrectionCommand(value = "") {
-  return CANCEL_CORRECTION_COMMANDS.has(value.trim().toLowerCase());
+function requiresCascadeReset(stepKey = "") {
+  return CASCADE_RESET_KEYS.has(stepKey);
 }
 
 function getStepAnswerValue(step, visaDetails, passportDetails) {
@@ -213,31 +204,44 @@ function getAnsweredEditableSteps(visaDetails, passportDetails) {
     editable.push({
       stepIndex,
       key: step.key,
-      label: EDIT_FIELD_LABELS[step.key] || titleCase(step.key),
+      label: EDIT_CHIP_LABELS[step.key] || titleCase(step.key),
     });
   }
 
   return editable;
 }
 
-function resolveFieldSelection(input, options = []) {
-  const normalized = input.trim().toLowerCase();
-  const numberMatch = normalized.match(/^(\d+)$/);
+function clearAnswersFromStep(fromStepIndex, visaDetails, passportDetails) {
+  let nextVisa = { ...visaDetails };
+  let nextPassport = { ...passportDetails };
 
-  if (numberMatch) {
-    const selectedIndex = Number(numberMatch[1]) - 1;
+  for (let index = fromStepIndex + 1; index < steps.length; index += 1) {
+    const step = steps[index];
 
-    if (selectedIndex >= 0 && selectedIndex < options.length) {
-      return options[selectedIndex];
+    if (step.key === "passportUpload") {
+      continue;
+    }
+
+    if (step.target === "visaDetails") {
+      nextVisa = { ...nextVisa, [step.key]: "" };
+    } else if (step.target === "passportDetails") {
+      nextPassport = { ...nextPassport, [step.key]: "" };
     }
   }
 
-  return options.find(
-    (option) =>
-      option.label.toLowerCase() === normalized ||
-      option.key.toLowerCase() === normalized ||
-      option.label.toLowerCase().includes(normalized)
-  );
+  return { visaDetails: nextVisa, passportDetails: nextPassport };
+}
+
+function pruneStepSnapshotsAfter(snapshots, fromStepIndex) {
+  const next = { ...snapshots };
+
+  Object.keys(next).forEach((key) => {
+    if (Number(key) > fromStepIndex) {
+      delete next[key];
+    }
+  });
+
+  return next;
 }
 
 function getRepopulateInputForStep(step, visaDetails, passportDetails) {
@@ -555,9 +559,8 @@ function ChatPage() {
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isListening, setIsListening] = useState(false);
-  const [awaitingFieldSelection, setAwaitingFieldSelection] = useState(false);
-  const [correctionOptions, setCorrectionOptions] = useState([]);
-  const [editLastMeta, setEditLastMeta] = useState(null);
+  const [stepSnapshots, setStepSnapshots] = useState({});
+  const [editingStepIndex, setEditingStepIndex] = useState(null);
   const [datePickerRemountKey, setDatePickerRemountKey] = useState(0);
 
   const endRef = useRef(null);
@@ -570,8 +573,8 @@ function ChatPage() {
   const isProcessingRef = useRef(false);
   const autoCompleteRef = useRef(false);
   const isEditModeRef = useRef(isEditRestart);
-  const awaitingFieldSelectionRef = useRef(false);
-  const correctionOptionsRef = useRef([]);
+  const editingStepRef = useRef(null);
+  const resumeStepIndexRef = useRef(null);
   const markdownPlugins = useMemo(() => [remarkGfm], []);
 
   useEffect(() => {
@@ -636,111 +639,81 @@ function ChatPage() {
     ]);
   }, []);
 
-  const jumpToCorrectionStep = useCallback(
-    (targetStepIndex) => {
-      awaitingFieldSelectionRef.current = false;
-      setAwaitingFieldSelection(false);
-      correctionOptionsRef.current = [];
-      setCorrectionOptions([]);
-      setEditLastMeta(null);
-      stepIndexRef.current = targetStepIndex;
-      setStepIndex(targetStepIndex);
-      setInput("");
-      setErrorMessage("");
-      appendAssistantMessage(steps[targetStepIndex].question);
-    },
-    [appendAssistantMessage]
+  const editableChips = useMemo(
+    () =>
+      getAnsweredEditableSteps(visaDetails, passportDetails).map((field) => ({
+        ...field,
+        label: EDIT_CHIP_LABELS[field.key] || field.label,
+      })),
+    [visaDetails, passportDetails]
   );
 
-  const cancelCorrectionFlow = useCallback(() => {
-    awaitingFieldSelectionRef.current = false;
-    setAwaitingFieldSelection(false);
-    correctionOptionsRef.current = [];
-    setCorrectionOptions([]);
-    setEditLastMeta(null);
-
-    const activeStep = steps[stepIndexRef.current];
-
-    appendAssistantMessages([
-      "No problem. Let's continue with your application.",
-      activeStep?.question || "Continue when you're ready.",
-    ]);
-  }, [appendAssistantMessages]);
-
-  const startCorrectionFlow = useCallback(() => {
-    const editable = getAnsweredEditableSteps(
-      visaDetailsRef.current,
-      passportDetailsRef.current
-    );
-
-    if (!editable.length) {
-      appendAssistantMessage(
-        "There are no answers to update yet. Continue the application and try again."
-      );
-      return;
-    }
-
-    awaitingFieldSelectionRef.current = true;
-    setAwaitingFieldSelection(true);
-    correctionOptionsRef.current = editable;
-    setCorrectionOptions(editable);
-    setEditLastMeta(null);
-
-    appendAssistantMessages([
-      "Which field would you like to update? Choose one below or type its name.",
-      editable.map((field, index) => `${index + 1}. ${field.label}`).join("\n"),
-    ]);
-  }, [appendAssistantMessage, appendAssistantMessages]);
-
-  const handleCorrectionSelect = useCallback(
-    (option) => {
+  const handleEditChipClick = useCallback(
+    (chip) => {
       if (isProcessingRef.current || isThinking || isSaving) {
         return;
       }
 
-      setMessages((prev) => [...prev, createMessage("user", option.label)]);
+      const targetStepIndex = chip.stepIndex;
+      const step = steps[targetStepIndex];
+      const snapshot = stepSnapshots[targetStepIndex];
+      const cascade = requiresCascadeReset(step.key);
+      let repopVisa = visaDetailsRef.current;
+      let repopPassport = passportDetailsRef.current;
 
       if (isComplete) {
         setIsComplete(false);
         setStatusMessage("");
       }
 
-      jumpToCorrectionStep(option.stepIndex);
+      if (cascade) {
+        if (snapshot) {
+          setMessages((prev) => prev.slice(0, snapshot.userMessageIndex));
+        }
+
+        const cleared = clearAnswersFromStep(
+          targetStepIndex,
+          visaDetailsRef.current,
+          passportDetailsRef.current
+        );
+
+        repopVisa = cleared.visaDetails;
+        repopPassport = cleared.passportDetails;
+
+        setVisaDetails(cleared.visaDetails);
+        setPassportDetails(cleared.passportDetails);
+        visaDetailsRef.current = cleared.visaDetails;
+        passportDetailsRef.current = cleared.passportDetails;
+        setStepSnapshots((prev) => pruneStepSnapshotsAfter(prev, targetStepIndex));
+        editingStepRef.current = targetStepIndex;
+        setEditingStepIndex(targetStepIndex);
+        resumeStepIndexRef.current = null;
+      } else {
+        resumeStepIndexRef.current = stepIndexRef.current;
+        editingStepRef.current = targetStepIndex;
+        setEditingStepIndex(targetStepIndex);
+      }
+
+      const repop = getRepopulateInputForStep(step, repopVisa, repopPassport);
+
+      stepIndexRef.current = targetStepIndex;
+      setStepIndex(targetStepIndex);
+      setInput(repop);
+      setDatePickerRemountKey((key) => key + 1);
+      setErrorMessage("");
+
+      if (cascade) {
+        appendAssistantMessage(step.question);
+      }
     },
-    [isComplete, isThinking, isSaving, jumpToCorrectionStep]
+    [
+      appendAssistantMessage,
+      isComplete,
+      isSaving,
+      isThinking,
+      stepSnapshots,
+    ]
   );
-
-  const handleEditLastAnswer = useCallback(() => {
-    if (!editLastMeta || isComplete || isThinking || isSaving) {
-      return;
-    }
-
-    const { userMessageIndex, stepIndex } = editLastMeta;
-    const step = steps[stepIndex];
-
-    if (!step?.target) {
-      return;
-    }
-
-    awaitingFieldSelectionRef.current = false;
-    setAwaitingFieldSelection(false);
-    correctionOptionsRef.current = [];
-    setCorrectionOptions([]);
-
-    const repop = getRepopulateInputForStep(
-      step,
-      visaDetailsRef.current,
-      passportDetailsRef.current
-    );
-
-    setMessages((prev) => prev.slice(0, userMessageIndex + 1));
-    stepIndexRef.current = stepIndex;
-    setStepIndex(stepIndex);
-    setInput(repop);
-    setEditLastMeta(null);
-    setDatePickerRemountKey((key) => key + 1);
-    setErrorMessage("");
-  }, [editLastMeta, isComplete, isThinking, isSaving]);
 
   const completeApplication = useCallback(async (nextVisaDetails, nextPassportDetails) => {
     if (!hasRequiredApplicationDetails(nextVisaDetails, nextPassportDetails)) {
@@ -778,7 +751,8 @@ function ChatPage() {
       );
 
       setIsComplete(true);
-      setEditLastMeta(null);
+      editingStepRef.current = null;
+      setEditingStepIndex(null);
       setStatusMessage("Application saved successfully.");
       appendAssistantMessage(
         `${buildApplicationSummary(finalApplicationData)}\n\nVisa application submitted successfully. Review the summary before generating the PDF.`
@@ -901,63 +875,43 @@ function ChatPage() {
     const trimmedInput = cleanupField(forcedValue || input);
     if (!trimmedInput) return;
 
-    const preMessageCount = messages.length;
-
-    const isEdit = isEditCommand(trimmedInput);
-    const selectingField = awaitingFieldSelectionRef.current;
-
-    if (!isEdit && !selectingField && isComplete) return;
+    if (isComplete) return;
 
     const activeStepIndex = stepIndexRef.current;
     const currentStep = steps[activeStepIndex];
     const currentVisaDetails = visaDetailsRef.current;
     const currentPassportDetails = passportDetailsRef.current;
+    const isInPlaceEdit =
+      editingStepRef.current === activeStepIndex &&
+      stepSnapshots[activeStepIndex] &&
+      !requiresCascadeReset(currentStep?.key);
+    const snapshot = stepSnapshots[activeStepIndex];
 
     debugChatWorkflow("received user input", {
       currentStep: currentStep?.key,
       currentStepIndex: activeStepIndex,
       input: trimmedInput,
+      isInPlaceEdit,
     });
 
-    setMessages((prev) => [...prev, createMessage("user", trimmedInput)]);
+    if (isInPlaceEdit && snapshot) {
+      setMessages((prev) => {
+        const next = [...prev];
+        next[snapshot.userMessageIndex] = createMessage("user", trimmedInput);
+        return next;
+      });
+    } else {
+      const preMessageCount = messages.length;
+      setMessages((prev) => [...prev, createMessage("user", trimmedInput)]);
+      setStepSnapshots((prev) => ({
+        ...prev,
+        [activeStepIndex]: { userMessageIndex: preMessageCount },
+      }));
+    }
+
     setInput("");
     setTranscriptPreview("");
     setErrorMessage("");
-
-    if (isEdit || selectingField) {
-      if (isComplete) {
-        setIsComplete(false);
-        setStatusMessage("");
-      }
-
-      if (isEdit) {
-        startCorrectionFlow();
-        return;
-      }
-
-      if (isCancelCorrectionCommand(trimmedInput)) {
-        cancelCorrectionFlow();
-        return;
-      }
-
-      const selectedField = resolveFieldSelection(
-        trimmedInput,
-        correctionOptionsRef.current
-      );
-
-      if (!selectedField) {
-        appendAssistantMessages([
-          "I couldn't find that field. Choose one from the list below or type its number.",
-          correctionOptionsRef.current
-            .map((field, index) => `${index + 1}. ${field.label}`)
-            .join("\n"),
-        ]);
-        return;
-      }
-
-      jumpToCorrectionStep(selectedField.stepIndex);
-      return;
-    }
 
     if (!currentStep) {
       const fallbackStepIndex = Math.min(activeStepIndex, steps.length - 1);
@@ -1012,11 +966,27 @@ function ChatPage() {
       setVisaDetails(nextVisaDetails);
       setPassportDetails(nextPassportDetails);
 
-      if (currentStep.key !== "passportUpload") {
-        setEditLastMeta({
-          userMessageIndex: preMessageCount,
-          stepIndex: activeStepIndex,
-        });
+      if (isInPlaceEdit) {
+        const resumeIndex =
+          resumeStepIndexRef.current ?? getNextStepIndex(
+            activeStepIndex,
+            nextPassportDetails,
+            passportSkippedRef.current,
+            isEditModeRef.current
+          );
+
+        editingStepRef.current = null;
+        setEditingStepIndex(null);
+        resumeStepIndexRef.current = null;
+        stepIndexRef.current = resumeIndex;
+        setStepIndex(resumeIndex);
+        return;
+      }
+
+      if (editingStepRef.current === activeStepIndex) {
+        editingStepRef.current = null;
+        setEditingStepIndex(null);
+        resumeStepIndexRef.current = null;
       }
 
       await moveToNextStep(
@@ -1102,14 +1072,9 @@ function ChatPage() {
   const hasSearchableOptions = Boolean(currentStep?.searchableOptions?.length);
   const isDateStep =
     currentStep?.key === "dateOfBirth" || currentStep?.key === "travelDate";
-  const showCorrectionOptions =
-    awaitingFieldSelection && correctionOptions.length > 0;
+  const showEditChips = editableChips.length > 0 && !isComplete;
   const disableTextInput =
-    disableInput ||
-    hasStepOptions ||
-    hasSearchableOptions ||
-    isDateStep ||
-    showCorrectionOptions;
+    disableInput || hasStepOptions || hasSearchableOptions || isDateStep;
   const filteredSearchOptions = useMemo(() => {
     if (!hasSearchableOptions) {
       return [];
@@ -1159,36 +1124,14 @@ function ChatPage() {
 
           <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
             <div className="mx-auto max-w-5xl space-y-3">
-              {messages.map((msg, index) => {
-                const showEditLast =
-                  msg.sender === "user" &&
-                  editLastMeta &&
-                  editLastMeta.userMessageIndex === index &&
-                  !isComplete &&
-                  !awaitingFieldSelection &&
-                  !isThinking &&
-                  !isSaving;
-
-                return (
+              {messages.map((msg, index) => (
                 <ChatBubble
                   key={`${msg.sender}-${index}`}
                   sender={msg.sender}
                   timestamp={msg.timestamp}
                 >
                   {msg.sender === "user" ? (
-                    <div>
-                      <div className="whitespace-pre-wrap break-words">{msg.text}</div>
-                      {showEditLast && (
-                        <button
-                          type="button"
-                          onClick={handleEditLastAnswer}
-                          className="mt-2 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
-                        >
-                          <Pencil className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
-                          Edit last answer
-                        </button>
-                      )}
-                    </div>
+                    <div className="whitespace-pre-wrap break-words">{msg.text}</div>
                   ) : (
                     <div className="markdown leading-relaxed">
                       <ReactMarkdown remarkPlugins={markdownPlugins}>
@@ -1197,8 +1140,7 @@ function ChatPage() {
                     </div>
                   )}
                 </ChatBubble>
-              );
-              })}
+              ))}
 
               <AnimatePresence>
                 {(isThinking || isSaving) && (
@@ -1327,33 +1269,24 @@ function ChatPage() {
                 </div>
               )}
 
-              {showCorrectionOptions && (
+              {showEditChips && (
                 <div className="mb-3 flex flex-wrap gap-2">
-                  {correctionOptions.map((option) => (
+                  {editableChips.map((chip) => (
                     <button
-                      key={option.key}
+                      key={chip.key}
                       type="button"
-                      onClick={() => handleCorrectionSelect(option)}
+                      onClick={() => handleEditChipClick(chip)}
                       disabled={disableInput}
-                      className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      className={[
+                        "rounded-full border px-3 py-1.5 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-50",
+                        editingStepIndex === chip.stepIndex
+                          ? "border-emerald-600 bg-emerald-50 text-emerald-800"
+                          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
+                      ].join(" ")}
                     >
-                      {option.label}
+                      {chip.label}
                     </button>
                   ))}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMessages((prev) => [
-                        ...prev,
-                        createMessage("user", "Cancel"),
-                      ]);
-                      cancelCorrectionFlow();
-                    }}
-                    disabled={disableInput}
-                    className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
                 </div>
               )}
 
@@ -1389,7 +1322,7 @@ function ChatPage() {
                 </div>
               )}
 
-              {!hasSearchableOptions && !isDateStep && !showCorrectionOptions && (
+              {!hasSearchableOptions && !isDateStep && (
               <div className="flex items-center gap-3 rounded-3xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-200/70">
                 <button
                   type="button"
@@ -1445,7 +1378,7 @@ function ChatPage() {
 
               <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
                 <FileText className="h-3.5 w-3.5" />
-                Your answers are saved locally during the flow. Type edit, change, or modify to update a previous answer.
+                Your answers are saved locally during the flow and submitted when complete.
               </div>
             </div>
           </div>

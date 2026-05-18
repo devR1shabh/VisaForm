@@ -146,6 +146,98 @@ const steps = [
 ];
 
 const CHAT_DEBUG_STORAGE_KEY = "visaAssistantDebug";
+const EDIT_COMMANDS = new Set(["edit", "change", "modify"]);
+const CANCEL_CORRECTION_COMMANDS = new Set([
+  "cancel",
+  "back",
+  "nevermind",
+  "never mind",
+]);
+
+const EDIT_FIELD_LABELS = {
+  destinationCountry: "Destination Country",
+  visaType: "Visa Type",
+  duration: "Duration",
+  travelDate: "Travel Date",
+  additionalNotes: "Additional Notes",
+  name: "Full Name",
+  passportNumber: "Passport Number",
+  nationality: "Nationality",
+  sex: "Gender",
+  dateOfBirth: "Date of Birth",
+};
+
+function isEditCommand(value = "") {
+  return EDIT_COMMANDS.has(value.trim().toLowerCase());
+}
+
+function isCancelCorrectionCommand(value = "") {
+  return CANCEL_CORRECTION_COMMANDS.has(value.trim().toLowerCase());
+}
+
+function getStepAnswerValue(step, visaDetails, passportDetails) {
+  if (step.target === "visaDetails") {
+    const value = visaDetails[step.key];
+
+    if (step.key === "travelDate" && value === "Not sure") {
+      return "Not sure";
+    }
+
+    return cleanupField(value);
+  }
+
+  if (step.target === "passportDetails") {
+    return cleanupField(passportDetails[step.key]);
+  }
+
+  return "";
+}
+
+function getAnsweredEditableSteps(visaDetails, passportDetails) {
+  const editable = [];
+
+  for (let stepIndex = 0; stepIndex < steps.length; stepIndex += 1) {
+    const step = steps[stepIndex];
+
+    if (step.key === "passportUpload") {
+      continue;
+    }
+
+    const value = getStepAnswerValue(step, visaDetails, passportDetails);
+
+    if (!value) {
+      continue;
+    }
+
+    editable.push({
+      stepIndex,
+      key: step.key,
+      label: EDIT_FIELD_LABELS[step.key] || titleCase(step.key),
+    });
+  }
+
+  return editable;
+}
+
+function resolveFieldSelection(input, options = []) {
+  const normalized = input.trim().toLowerCase();
+  const numberMatch = normalized.match(/^(\d+)$/);
+
+  if (numberMatch) {
+    const selectedIndex = Number(numberMatch[1]) - 1;
+
+    if (selectedIndex >= 0 && selectedIndex < options.length) {
+      return options[selectedIndex];
+    }
+  }
+
+  return options.find(
+    (option) =>
+      option.label.toLowerCase() === normalized ||
+      option.key.toLowerCase() === normalized ||
+      option.label.toLowerCase().includes(normalized)
+  );
+}
 
 function debugChatWorkflow(label, details = {}) {
   if (sessionStorage.getItem(CHAT_DEBUG_STORAGE_KEY) === "true") {
@@ -438,6 +530,8 @@ function ChatPage() {
   const [statusMessage, setStatusMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [isListening, setIsListening] = useState(false);
+  const [awaitingFieldSelection, setAwaitingFieldSelection] = useState(false);
+  const [correctionOptions, setCorrectionOptions] = useState([]);
 
   const endRef = useRef(null);
   const inputRef = useRef(null);
@@ -449,6 +543,8 @@ function ChatPage() {
   const isProcessingRef = useRef(false);
   const autoCompleteRef = useRef(false);
   const isEditModeRef = useRef(isEditRestart);
+  const awaitingFieldSelectionRef = useRef(false);
+  const correctionOptionsRef = useRef([]);
   const markdownPlugins = useMemo(() => [remarkGfm], []);
 
   useEffect(() => {
@@ -512,6 +608,77 @@ function ChatPage() {
       ...validTexts.map((text) => createMessage("ai", text)),
     ]);
   }, []);
+
+  const jumpToCorrectionStep = useCallback(
+    (targetStepIndex) => {
+      awaitingFieldSelectionRef.current = false;
+      setAwaitingFieldSelection(false);
+      correctionOptionsRef.current = [];
+      setCorrectionOptions([]);
+      stepIndexRef.current = targetStepIndex;
+      setStepIndex(targetStepIndex);
+      setInput("");
+      setErrorMessage("");
+      appendAssistantMessage(steps[targetStepIndex].question);
+    },
+    [appendAssistantMessage]
+  );
+
+  const cancelCorrectionFlow = useCallback(() => {
+    awaitingFieldSelectionRef.current = false;
+    setAwaitingFieldSelection(false);
+    correctionOptionsRef.current = [];
+    setCorrectionOptions([]);
+
+    const activeStep = steps[stepIndexRef.current];
+
+    appendAssistantMessages([
+      "No problem. Let's continue with your application.",
+      activeStep?.question || "Continue when you're ready.",
+    ]);
+  }, [appendAssistantMessages]);
+
+  const startCorrectionFlow = useCallback(() => {
+    const editable = getAnsweredEditableSteps(
+      visaDetailsRef.current,
+      passportDetailsRef.current
+    );
+
+    if (!editable.length) {
+      appendAssistantMessage(
+        "There are no answers to update yet. Continue the application and try again."
+      );
+      return;
+    }
+
+    awaitingFieldSelectionRef.current = true;
+    setAwaitingFieldSelection(true);
+    correctionOptionsRef.current = editable;
+    setCorrectionOptions(editable);
+
+    appendAssistantMessages([
+      "Which field would you like to update? Choose one below or type its name.",
+      editable.map((field, index) => `${index + 1}. ${field.label}`).join("\n"),
+    ]);
+  }, [appendAssistantMessages]);
+
+  const handleCorrectionSelect = useCallback(
+    (option) => {
+      if (isProcessingRef.current || isThinking || isSaving) {
+        return;
+      }
+
+      setMessages((prev) => [...prev, createMessage("user", option.label)]);
+
+      if (isComplete) {
+        setIsComplete(false);
+        setStatusMessage("");
+      }
+
+      jumpToCorrectionStep(option.stepIndex);
+    },
+    [isComplete, isThinking, isSaving, jumpToCorrectionStep]
+  );
 
   const completeApplication = useCallback(async (nextVisaDetails, nextPassportDetails) => {
     if (!hasRequiredApplicationDetails(nextVisaDetails, nextPassportDetails)) {
@@ -666,10 +833,15 @@ function ChatPage() {
   };
 
   const handleSend = async (forcedValue) => {
-    if (isProcessingRef.current || isThinking || isSaving || isComplete) return;
+    if (isProcessingRef.current || isThinking || isSaving) return;
 
     const trimmedInput = cleanupField(forcedValue || input);
     if (!trimmedInput) return;
+
+    const isEdit = isEditCommand(trimmedInput);
+    const selectingField = awaitingFieldSelectionRef.current;
+
+    if (!isEdit && !selectingField && isComplete) return;
 
     const activeStepIndex = stepIndexRef.current;
     const currentStep = steps[activeStepIndex];
@@ -686,6 +858,41 @@ function ChatPage() {
     setInput("");
     setTranscriptPreview("");
     setErrorMessage("");
+
+    if (isEdit || selectingField) {
+      if (isComplete) {
+        setIsComplete(false);
+        setStatusMessage("");
+      }
+
+      if (isEdit) {
+        startCorrectionFlow();
+        return;
+      }
+
+      if (isCancelCorrectionCommand(trimmedInput)) {
+        cancelCorrectionFlow();
+        return;
+      }
+
+      const selectedField = resolveFieldSelection(
+        trimmedInput,
+        correctionOptionsRef.current
+      );
+
+      if (!selectedField) {
+        appendAssistantMessages([
+          "I couldn't find that field. Choose one from the list below or type its number.",
+          correctionOptionsRef.current
+            .map((field, index) => `${index + 1}. ${field.label}`)
+            .join("\n"),
+        ]);
+        return;
+      }
+
+      jumpToCorrectionStep(selectedField.stepIndex);
+      return;
+    }
 
     if (!currentStep) {
       const fallbackStepIndex = Math.min(activeStepIndex, steps.length - 1);
@@ -823,8 +1030,14 @@ function ChatPage() {
   const hasSearchableOptions = Boolean(currentStep?.searchableOptions?.length);
   const isDateStep =
     currentStep?.key === "dateOfBirth" || currentStep?.key === "travelDate";
+  const showCorrectionOptions =
+    awaitingFieldSelection && correctionOptions.length > 0;
   const disableTextInput =
-    disableInput || hasStepOptions || hasSearchableOptions || isDateStep;
+    disableInput ||
+    hasStepOptions ||
+    hasSearchableOptions ||
+    isDateStep ||
+    showCorrectionOptions;
   const filteredSearchOptions = useMemo(() => {
     if (!hasSearchableOptions) {
       return [];
@@ -1019,6 +1232,36 @@ function ChatPage() {
                 </div>
               )}
 
+              {showCorrectionOptions && (
+                <div className="mb-3 flex flex-wrap gap-2">
+                  {correctionOptions.map((option) => (
+                    <button
+                      key={option.key}
+                      type="button"
+                      onClick={() => handleCorrectionSelect(option)}
+                      disabled={disableInput}
+                      className="rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMessages((prev) => [
+                        ...prev,
+                        createMessage("user", "Cancel"),
+                      ]);
+                      cancelCorrectionFlow();
+                    }}
+                    disabled={disableInput}
+                    className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+
               {isDateStep && (
                 <div className="mb-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
                   <div
@@ -1051,7 +1294,7 @@ function ChatPage() {
                 </div>
               )}
 
-              {!hasSearchableOptions && !isDateStep && (
+              {!hasSearchableOptions && !isDateStep && !showCorrectionOptions && (
               <div className="flex items-center gap-3 rounded-3xl border border-slate-200 bg-white p-2 shadow-xl shadow-slate-200/70">
                 <button
                   type="button"
@@ -1107,7 +1350,7 @@ function ChatPage() {
 
               <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
                 <FileText className="h-3.5 w-3.5" />
-                Your answers are saved locally during the flow and submitted when complete.
+                Your answers are saved locally during the flow. Type edit, change, or modify to update a previous answer.
               </div>
             </div>
           </div>

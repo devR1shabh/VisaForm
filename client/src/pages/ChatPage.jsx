@@ -11,6 +11,7 @@ import {
   FileText,
   Mic,
   MicOff,
+  Pencil,
   Send,
   Sparkles,
   UploadCloud,
@@ -237,6 +238,30 @@ function resolveFieldSelection(input, options = []) {
       option.key.toLowerCase() === normalized ||
       option.label.toLowerCase().includes(normalized)
   );
+}
+
+function getRepopulateInputForStep(step, visaDetails, passportDetails) {
+  if (!step?.target) {
+    return "";
+  }
+
+  if (step.target === "visaDetails") {
+    const raw = visaDetails[step.key];
+
+    if (step.key === "travelDate" && raw === "Not sure") {
+      return "";
+    }
+
+    return raw != null ? String(raw) : "";
+  }
+
+  if (step.target === "passportDetails") {
+    const raw = passportDetails[step.key];
+
+    return raw != null ? String(raw) : "";
+  }
+
+  return "";
 }
 
 function debugChatWorkflow(label, details = {}) {
@@ -532,6 +557,8 @@ function ChatPage() {
   const [isListening, setIsListening] = useState(false);
   const [awaitingFieldSelection, setAwaitingFieldSelection] = useState(false);
   const [correctionOptions, setCorrectionOptions] = useState([]);
+  const [editLastMeta, setEditLastMeta] = useState(null);
+  const [datePickerRemountKey, setDatePickerRemountKey] = useState(0);
 
   const endRef = useRef(null);
   const inputRef = useRef(null);
@@ -615,6 +642,7 @@ function ChatPage() {
       setAwaitingFieldSelection(false);
       correctionOptionsRef.current = [];
       setCorrectionOptions([]);
+      setEditLastMeta(null);
       stepIndexRef.current = targetStepIndex;
       setStepIndex(targetStepIndex);
       setInput("");
@@ -629,6 +657,7 @@ function ChatPage() {
     setAwaitingFieldSelection(false);
     correctionOptionsRef.current = [];
     setCorrectionOptions([]);
+    setEditLastMeta(null);
 
     const activeStep = steps[stepIndexRef.current];
 
@@ -655,12 +684,13 @@ function ChatPage() {
     setAwaitingFieldSelection(true);
     correctionOptionsRef.current = editable;
     setCorrectionOptions(editable);
+    setEditLastMeta(null);
 
     appendAssistantMessages([
       "Which field would you like to update? Choose one below or type its name.",
       editable.map((field, index) => `${index + 1}. ${field.label}`).join("\n"),
     ]);
-  }, [appendAssistantMessages]);
+  }, [appendAssistantMessage, appendAssistantMessages]);
 
   const handleCorrectionSelect = useCallback(
     (option) => {
@@ -679,6 +709,38 @@ function ChatPage() {
     },
     [isComplete, isThinking, isSaving, jumpToCorrectionStep]
   );
+
+  const handleEditLastAnswer = useCallback(() => {
+    if (!editLastMeta || isComplete || isThinking || isSaving) {
+      return;
+    }
+
+    const { userMessageIndex, stepIndex } = editLastMeta;
+    const step = steps[stepIndex];
+
+    if (!step?.target) {
+      return;
+    }
+
+    awaitingFieldSelectionRef.current = false;
+    setAwaitingFieldSelection(false);
+    correctionOptionsRef.current = [];
+    setCorrectionOptions([]);
+
+    const repop = getRepopulateInputForStep(
+      step,
+      visaDetailsRef.current,
+      passportDetailsRef.current
+    );
+
+    setMessages((prev) => prev.slice(0, userMessageIndex + 1));
+    stepIndexRef.current = stepIndex;
+    setStepIndex(stepIndex);
+    setInput(repop);
+    setEditLastMeta(null);
+    setDatePickerRemountKey((key) => key + 1);
+    setErrorMessage("");
+  }, [editLastMeta, isComplete, isThinking, isSaving]);
 
   const completeApplication = useCallback(async (nextVisaDetails, nextPassportDetails) => {
     if (!hasRequiredApplicationDetails(nextVisaDetails, nextPassportDetails)) {
@@ -716,6 +778,7 @@ function ChatPage() {
       );
 
       setIsComplete(true);
+      setEditLastMeta(null);
       setStatusMessage("Application saved successfully.");
       appendAssistantMessage(
         `${buildApplicationSummary(finalApplicationData)}\n\nVisa application submitted successfully. Review the summary before generating the PDF.`
@@ -838,6 +901,8 @@ function ChatPage() {
     const trimmedInput = cleanupField(forcedValue || input);
     if (!trimmedInput) return;
 
+    const preMessageCount = messages.length;
+
     const isEdit = isEditCommand(trimmedInput);
     const selectingField = awaitingFieldSelectionRef.current;
 
@@ -946,6 +1011,13 @@ function ChatPage() {
 
       setVisaDetails(nextVisaDetails);
       setPassportDetails(nextPassportDetails);
+
+      if (currentStep.key !== "passportUpload") {
+        setEditLastMeta({
+          userMessageIndex: preMessageCount,
+          stepIndex: activeStepIndex,
+        });
+      }
 
       await moveToNextStep(
         activeStepIndex,
@@ -1087,14 +1159,36 @@ function ChatPage() {
 
           <div className="flex-1 overflow-y-auto px-4 py-4 sm:px-6">
             <div className="mx-auto max-w-5xl space-y-3">
-              {messages.map((msg, index) => (
+              {messages.map((msg, index) => {
+                const showEditLast =
+                  msg.sender === "user" &&
+                  editLastMeta &&
+                  editLastMeta.userMessageIndex === index &&
+                  !isComplete &&
+                  !awaitingFieldSelection &&
+                  !isThinking &&
+                  !isSaving;
+
+                return (
                 <ChatBubble
                   key={`${msg.sender}-${index}`}
                   sender={msg.sender}
                   timestamp={msg.timestamp}
                 >
                   {msg.sender === "user" ? (
-                    <div className="whitespace-pre-wrap break-words">{msg.text}</div>
+                    <div>
+                      <div className="whitespace-pre-wrap break-words">{msg.text}</div>
+                      {showEditLast && (
+                        <button
+                          type="button"
+                          onClick={handleEditLastAnswer}
+                          className="mt-2 inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
+                        >
+                          <Pencil className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+                          Edit last answer
+                        </button>
+                      )}
+                    </div>
                   ) : (
                     <div className="markdown leading-relaxed">
                       <ReactMarkdown remarkPlugins={markdownPlugins}>
@@ -1103,7 +1197,8 @@ function ChatPage() {
                     </div>
                   )}
                 </ChatBubble>
-              ))}
+              );
+              })}
 
               <AnimatePresence>
                 {(isThinking || isSaving) && (
@@ -1273,7 +1368,7 @@ function ChatPage() {
                   >
                     <div className="min-w-0 flex-1">
                       <ChatDatePicker
-                        key={currentStep.key}
+                        key={`${currentStep.key}-${datePickerRemountKey}`}
                         stepKey={currentStep.key}
                         disabled={disableInput}
                         onSelectDate={handleSend}

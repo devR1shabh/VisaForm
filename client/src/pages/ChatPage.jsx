@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
+import DatePicker from "react-datepicker";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { AnimatePresence, motion } from "framer-motion";
@@ -44,6 +45,7 @@ import {
   validatePassport,
   validateTravelDate,
 } from "../utils/validators";
+import { formatDateToYmd } from "../utils/dates";
 
 const STORAGE_KEY = "visaAssistantDraft";
 const FINAL_APPLICATION_KEY = "visaAssistantFinalApplication";
@@ -87,7 +89,7 @@ const steps = [
   {
     key: "travelDate",
     target: "visaDetails",
-    question: 'Select your planned travel date or chose "Not sure Yet")',
+    question: 'Select your planned travel date, or choose "Not Sure Yet" if undecided.',
     validate: validateTravelDate,
   },
   {
@@ -218,7 +220,16 @@ function hasRequiredApplicationDetails(visaDetails, passportDetails) {
   );
 }
 
-function getNextStepIndex(currentStepIndex, passportDetails, passportSkipped) {
+function getNextStepIndex(
+  currentStepIndex,
+  passportDetails,
+  passportSkipped,
+  linearMode = false
+) {
+  if (linearMode) {
+    return currentStepIndex + 1;
+  }
+
   for (let index = currentStepIndex + 1; index < steps.length; index += 1) {
     const step = steps[index];
 
@@ -256,6 +267,99 @@ function formatPassportSummary(passportDetails) {
   ].join("\n");
 }
 
+function resolveInitialChatState(
+  restoredDraft,
+  isEditRestart,
+  incomingPassportData,
+  restoredPassportDetails
+) {
+  if (isEditRestart) {
+    let visaDetails = restoredDraft.visaDetails;
+    let passportDetails = restoredDraft.passportDetails;
+
+    try {
+      const finalApplication = JSON.parse(
+        sessionStorage.getItem(FINAL_APPLICATION_KEY) || "null"
+      );
+
+      if (finalApplication?.visaDetails) {
+        visaDetails = {
+          ...initialVisaDetails,
+          ...finalApplication.visaDetails,
+        };
+        passportDetails = {
+          ...emptyPassportDetails,
+          ...finalApplication.passportDetails,
+        };
+      }
+    } catch {
+      // Keep draft values when final application cannot be parsed.
+    }
+
+    return {
+      visaDetails,
+      passportDetails,
+      passportSkipped: restoredDraft.passportSkipped,
+      stepIndex: 0,
+    };
+  }
+
+  let stepIndex =
+    incomingPassportData && steps[restoredDraft.stepIndex]?.key === "passportUpload"
+      ? getNextStepIndex(restoredDraft.stepIndex, restoredPassportDetails, false)
+      : restoredDraft.stepIndex;
+
+  if (stepIndex >= steps.length) {
+    stepIndex = steps.length - 1;
+  }
+
+  return {
+    visaDetails: restoredDraft.visaDetails,
+    passportDetails: restoredPassportDetails,
+    passportSkipped: incomingPassportData ? false : restoredDraft.passportSkipped,
+    stepIndex,
+  };
+}
+
+function ChatDatePicker({ stepKey, disabled, onSelectDate }) {
+  const today = useMemo(() => {
+    const date = new Date();
+    date.setHours(0, 0, 0, 0);
+    return date;
+  }, []);
+  const [pickerDate, setPickerDate] = useState(null);
+  const isDateOfBirth = stepKey === "dateOfBirth";
+
+  useEffect(() => {
+    setPickerDate(null);
+  }, [stepKey]);
+
+  return (
+    <DatePicker
+      selected={pickerDate}
+      onChange={(date) => setPickerDate(date)}
+      onSelect={(date) => {
+        if (date && !disabled) {
+          onSelectDate(formatDateToYmd(date));
+        }
+      }}
+      showMonthDropdown
+      showYearDropdown
+      dropdownMode="select"
+      maxDate={isDateOfBirth ? today : undefined}
+      minDate={!isDateOfBirth ? today : undefined}
+      dateFormat="dd MMM yyyy"
+      placeholderText={
+        isDateOfBirth ? "Select date of birth" : "Select travel date"
+      }
+      disabled={disabled}
+      shouldCloseOnSelect
+      className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-400 disabled:cursor-not-allowed disabled:bg-slate-50"
+      calendarClassName="visa-chat-datepicker"
+    />
+  );
+}
+
 function buildApplicationSummary(applicationData) {
   const normalizedApplicationData = normalizeApplicationData(applicationData);
   const { visaDetails, passportDetails, submittedAt } = normalizedApplicationData;
@@ -278,24 +382,37 @@ ${formatPassportSummary(passportDetails)}
 function ChatPage() {
   const location = useLocation();
   const navigate = useNavigate();
+  const isEditRestart = location.state?.edit === true;
   const restoredDraft = useMemo(() => loadDraft(), []);
   const incomingPassportData = location.state?.passportData;
-  const restoredPassportDetails = {
-    ...restoredDraft.passportDetails,
-    ...(incomingPassportData || {}),
-  };
-  const startStepIndex =
-    incomingPassportData && steps[restoredDraft.stepIndex]?.key === "passportUpload"
-      ? getNextStepIndex(restoredDraft.stepIndex, restoredPassportDetails, false)
-      : restoredDraft.stepIndex;
+  const initialChatState = useMemo(() => {
+    const restoredPassportDetails = {
+      ...restoredDraft.passportDetails,
+      ...(incomingPassportData || {}),
+    };
+
+    return resolveInitialChatState(
+      restoredDraft,
+      isEditRestart,
+      incomingPassportData,
+      restoredPassportDetails
+    );
+  }, [incomingPassportData, isEditRestart, restoredDraft]);
+  const startStepIndex = initialChatState.stepIndex;
 
   const [stepIndex, setStepIndex] = useState(startStepIndex);
-  const [visaDetails, setVisaDetails] = useState(restoredDraft.visaDetails);
-  const [passportDetails, setPassportDetails] = useState(restoredPassportDetails);
+  const [visaDetails, setVisaDetails] = useState(initialChatState.visaDetails);
+  const [passportDetails, setPassportDetails] = useState(
+    initialChatState.passportDetails
+  );
   const [passportSkipped, setPassportSkipped] = useState(
-    incomingPassportData ? false : restoredDraft.passportSkipped
+    initialChatState.passportSkipped
   );
   const [messages, setMessages] = useState(() => {
+    if (isEditRestart) {
+      return [createMessage("ai", steps[0].question)];
+    }
+
     const openingMessages = [];
 
     if (incomingPassportData) {
@@ -328,11 +445,12 @@ function ChatPage() {
   const inputRef = useRef(null);
   const recognitionRef = useRef(null);
   const stepIndexRef = useRef(startStepIndex);
-  const visaDetailsRef = useRef(restoredDraft.visaDetails);
-  const passportDetailsRef = useRef(restoredPassportDetails);
-  const passportSkippedRef = useRef(incomingPassportData ? false : restoredDraft.passportSkipped);
+  const visaDetailsRef = useRef(initialChatState.visaDetails);
+  const passportDetailsRef = useRef(initialChatState.passportDetails);
+  const passportSkippedRef = useRef(initialChatState.passportSkipped);
   const isProcessingRef = useRef(false);
   const autoCompleteRef = useRef(false);
+  const isEditModeRef = useRef(isEditRestart);
   const markdownPlugins = useMemo(() => [remarkGfm], []);
 
   useEffect(() => {
@@ -350,6 +468,14 @@ function ChatPage() {
   useEffect(() => {
     passportSkippedRef.current = passportSkipped;
   }, [passportSkipped]);
+
+  useEffect(() => {
+    if (!isEditRestart) {
+      return;
+    }
+
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [isEditRestart, location.pathname, navigate]);
 
   useEffect(() => {
     const draft = {
@@ -444,6 +570,7 @@ function ChatPage() {
   useEffect(() => {
     if (
       autoCompleteRef.current ||
+      isEditRestart ||
       !incomingPassportData ||
       startStepIndex < steps.length
     ) {
@@ -452,7 +579,7 @@ function ChatPage() {
 
     autoCompleteRef.current = true;
     void completeApplication(visaDetailsRef.current, passportDetailsRef.current);
-  }, [completeApplication, incomingPassportData, startStepIndex]);
+  }, [completeApplication, incomingPassportData, isEditRestart, startStepIndex]);
 
   const moveToNextStep = async (
     currentStepIndex,
@@ -464,7 +591,8 @@ function ChatPage() {
     const nextStepIndex = getNextStepIndex(
       currentStepIndex,
       nextPassportDetails,
-      nextPassportSkipped
+      nextPassportSkipped,
+      isEditModeRef.current
     );
 
     debugChatWorkflow("next step selected", {
@@ -692,10 +820,13 @@ function ChatPage() {
   const shouldShowUploadButton =
     steps[stepIndex]?.key === "passportUpload" && !isComplete;
   const currentStep = steps[stepIndex];
+  
   const hasStepOptions = Boolean(currentStep?.options?.length);
   const hasSearchableOptions = Boolean(currentStep?.searchableOptions?.length);
+  const isDateStep =
+    currentStep?.key === "dateOfBirth" || currentStep?.key === "travelDate";
   const disableTextInput =
-    disableInput || hasStepOptions || hasSearchableOptions;
+    disableInput || hasStepOptions || hasSearchableOptions || isDateStep;
   const filteredSearchOptions = useMemo(() => {
     if (!hasSearchableOptions) {
       return [];

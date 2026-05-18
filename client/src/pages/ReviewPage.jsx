@@ -152,7 +152,7 @@ function ReviewPage() {
               </p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row">
-              <Button as={Link} to="/chat" variant="secondary">
+              <Button as={Link} to="/chat" state={{ edit: true }} variant="secondary">
                 <PencilLine className="h-4 w-4" />
                 Edit Application
               </Button>

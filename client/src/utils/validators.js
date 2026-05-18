@@ -102,7 +102,7 @@ export function validateTravelDate(value = "") {
   if (notSureValues.has(cleanedValue.toLowerCase())) {
     return {
       isValid: true,
-      value: "",
+      value: "Not sure",
     };
   }
 

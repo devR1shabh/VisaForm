@@ -109,7 +109,7 @@ function drawRow(doc, label, value) {
 
   doc.font("Helvetica-Bold").fontSize(10.5);
 
-  const labelHeight = doc.heightOfString(${label}:, {
+  const labelHeight = doc.heightOfString(`${label}:`, {
     width: labelWidth,
   });
 
@@ -123,7 +123,7 @@ function drawRow(doc, label, value) {
     .font("Helvetica-Bold")
     .fontSize(10.5)
     .fillColor("#111827")
-    .text(${label}:, x, y, {
+    .text(`${label}:`, x, y, {
       width: labelWidth,
     });
 
@@ -235,10 +235,6 @@ router.post("/generate-pdf", async (req, res) => {
         safeFallback(visaDetails.destinationCountry),
       ],
       ["Visa Type", safeFallback(visaDetails.visaType)],
-      [
-        "Purpose of Visit",
-        safeFallback(visaDetails.travelPurpose),
-      ],
       [
         "Duration of Stay",
         safeFallback(visaDetails.duration),

@@ -214,6 +214,7 @@ function getAnsweredEditableSteps(visaDetails, passportDetails) {
 function clearAnswersFromStep(fromStepIndex, visaDetails, passportDetails) {
   let nextVisa = { ...visaDetails };
   let nextPassport = { ...passportDetails };
+  let clearPassportUploadCompletion = false;
 
   for (let index = fromStepIndex + 1; index < steps.length; index += 1) {
     const step = steps[index];
@@ -225,11 +226,16 @@ function clearAnswersFromStep(fromStepIndex, visaDetails, passportDetails) {
     if (step.target === "visaDetails") {
       nextVisa = { ...nextVisa, [step.key]: "" };
     } else if (step.target === "passportDetails") {
+      clearPassportUploadCompletion = true;
       nextPassport = { ...nextPassport, [step.key]: "" };
     }
   }
 
-  return { visaDetails: nextVisa, passportDetails: nextPassport };
+  return {
+    visaDetails: nextVisa,
+    passportDetails: nextPassport,
+    clearPassportUploadCompletion,
+  };
 }
 
 function pruneStepSnapshotsAfter(snapshots, fromStepIndex) {
@@ -306,6 +312,7 @@ function loadDraft() {
         ...(savedDraft.passportDetails || {}),
       },
       passportSkipped: Boolean(savedDraft.passportSkipped),
+      passportUploadCompleted: Boolean(savedDraft.passportUploadCompleted),
       stepIndex: Math.min(Math.max(savedStepIndex, 0), steps.length),
     };
   } catch {
@@ -313,6 +320,7 @@ function loadDraft() {
       visaDetails: initialVisaDetails,
       passportDetails: emptyPassportDetails,
       passportSkipped: false,
+      passportUploadCompleted: false,
       stepIndex: 0,
     };
   }
@@ -349,20 +357,29 @@ function isPassportStepAnswered(step, passportDetails) {
   return Boolean(getStepAnswerValue(step, {}, passportDetails));
 }
 
+function isPassportUploadStepComplete(passportDetails, passportUploadCompleted) {
+  return (
+    Boolean(passportUploadCompleted) || hasRequiredPassportDetails(passportDetails)
+  );
+}
+
+function getPassportUploadStepIndex() {
+  return steps.findIndex((step) => step.key === "passportUpload");
+}
+
 function getNextStepIndex(
   currentStepIndex,
   passportDetails,
   passportSkipped,
-  linearMode = false
+  passportUploadCompleted = false
 ) {
-  if (linearMode) {
-    return currentStepIndex + 1;
-  }
-
   for (let index = currentStepIndex + 1; index < steps.length; index += 1) {
     const step = steps[index];
 
-    if (step.key === "passportUpload" && hasRequiredPassportDetails(passportDetails)) {
+    if (
+      step.key === "passportUpload" &&
+      isPassportUploadStepComplete(passportDetails, passportUploadCompleted)
+    ) {
       continue;
     }
 
@@ -380,6 +397,42 @@ function getNextStepIndex(
   }
 
   return steps.length;
+}
+
+function advancePastCompletedSteps(
+  stepIndex,
+  passportDetails,
+  passportSkipped,
+  passportUploadCompleted
+) {
+  let index = Math.min(Math.max(stepIndex, 0), steps.length);
+
+  while (index < steps.length) {
+    const step = steps[index];
+    const passportUploadComplete = isPassportUploadStepComplete(
+      passportDetails,
+      passportUploadCompleted
+    );
+
+    const shouldAdvance =
+      (step.key === "passportUpload" && passportUploadComplete) ||
+      (step.manualPassportOnly &&
+        (isPassportStepAnswered(step, passportDetails) ||
+          (!passportSkipped && passportUploadComplete)));
+
+    if (!shouldAdvance) {
+      break;
+    }
+
+    index = getNextStepIndex(
+      index,
+      passportDetails,
+      passportSkipped,
+      passportUploadCompleted
+    );
+  }
+
+  return index;
 }
 
 function formatPassportSummary(passportDetails) {
@@ -427,52 +480,64 @@ function resolveInitialChatState(
       // Keep draft values when final application cannot be parsed.
     }
 
+    const passportUploadCompleted =
+      Boolean(restoredDraft.passportUploadCompleted) ||
+      hasRequiredPassportDetails(passportDetails);
+
     return {
       visaDetails,
       passportDetails,
       passportSkipped: restoredDraft.passportSkipped,
+      passportUploadCompleted,
       stepIndex: 0,
     };
   }
 
-  const returningFromPassportHandoff =
-    incomingPassportData && steps[restoredDraft.stepIndex]?.key === "passportUpload";
+  const passportUploadIndex = getPassportUploadStepIndex();
+  let passportUploadCompleted =
+    Boolean(restoredDraft.passportUploadCompleted) ||
+    hasRequiredPassportDetails(restoredPassportDetails);
 
-  let stepIndex = returningFromPassportHandoff
-    ? getNextStepIndex(
-        restoredDraft.stepIndex,
-        restoredPassportDetails,
-        true
-      )
-    : restoredDraft.stepIndex;
-
-  if (stepIndex > steps.length) {
-    stepIndex = steps.length - 1;
+  if (incomingPassportData) {
+    passportUploadCompleted = true;
   }
 
-  const passportSkippedForProgression = returningFromPassportHandoff
-    ? true
-    : restoredDraft.passportSkipped;
+  const isPassportHandoffReturn =
+    Boolean(incomingPassportData) &&
+    restoredDraft.stepIndex >= passportUploadIndex &&
+    passportUploadIndex >= 0;
 
-  if (stepIndex < steps.length) {
-    const resumedStep = steps[stepIndex];
+  const needsManualPassportEntry = !hasRequiredPassportDetails(restoredPassportDetails);
 
-    if (
-      resumedStep?.manualPassportOnly &&
-      isPassportStepAnswered(resumedStep, restoredPassportDetails)
-    ) {
-      stepIndex = getNextStepIndex(
-        stepIndex,
-        restoredPassportDetails,
-        passportSkippedForProgression
-      );
-    }
+  let stepIndex = restoredDraft.stepIndex;
+  let passportSkippedForProgression = restoredDraft.passportSkipped;
+
+  if (isPassportHandoffReturn) {
+    passportSkippedForProgression = needsManualPassportEntry;
+    stepIndex = getNextStepIndex(
+      passportUploadIndex,
+      restoredPassportDetails,
+      passportSkippedForProgression,
+      passportUploadCompleted
+    );
+  } else {
+    stepIndex = advancePastCompletedSteps(
+      stepIndex,
+      restoredPassportDetails,
+      passportSkippedForProgression,
+      passportUploadCompleted
+    );
+  }
+
+  if (stepIndex > steps.length) {
+    stepIndex = steps.length;
   }
 
   return {
     visaDetails: restoredDraft.visaDetails,
     passportDetails: restoredPassportDetails,
     passportSkipped: passportSkippedForProgression,
+    passportUploadCompleted,
     stepIndex,
   };
 }
@@ -562,6 +627,9 @@ function ChatPage() {
   const [passportSkipped, setPassportSkipped] = useState(
     initialChatState.passportSkipped
   );
+  const [passportUploadCompleted, setPassportUploadCompleted] = useState(
+    initialChatState.passportUploadCompleted
+  );
   const [messages, setMessages] = useState(() => {
     if (isEditRestart) {
       return [createMessage("ai", steps[0].question)];
@@ -605,9 +673,11 @@ function ChatPage() {
   const visaDetailsRef = useRef(initialChatState.visaDetails);
   const passportDetailsRef = useRef(initialChatState.passportDetails);
   const passportSkippedRef = useRef(initialChatState.passportSkipped);
+  const passportUploadCompletedRef = useRef(
+    initialChatState.passportUploadCompleted
+  );
   const isProcessingRef = useRef(false);
   const autoCompleteRef = useRef(false);
-  const isEditModeRef = useRef(isEditRestart);
   const editingStepRef = useRef(null);
   const resumeStepIndexRef = useRef(null);
   const markdownPlugins = useMemo(() => [remarkGfm], []);
@@ -629,6 +699,10 @@ function ChatPage() {
   }, [passportSkipped]);
 
   useEffect(() => {
+    passportUploadCompletedRef.current = passportUploadCompleted;
+  }, [passportUploadCompleted]);
+
+  useEffect(() => {
     if (!isEditRestart) {
       return;
     }
@@ -641,11 +715,19 @@ function ChatPage() {
       visaDetails,
       passportDetails,
       passportSkipped,
+      passportUploadCompleted:
+        passportUploadCompleted || hasRequiredPassportDetails(passportDetails),
       stepIndex,
     };
 
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(draft));
-  }, [visaDetails, passportDetails, passportSkipped, stepIndex]);
+  }, [
+    visaDetails,
+    passportDetails,
+    passportSkipped,
+    passportUploadCompleted,
+    stepIndex,
+  ]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({
@@ -719,6 +801,12 @@ function ChatPage() {
         setPassportDetails(cleared.passportDetails);
         visaDetailsRef.current = cleared.visaDetails;
         passportDetailsRef.current = cleared.passportDetails;
+
+        if (cleared.clearPassportUploadCompletion) {
+          setPassportUploadCompleted(false);
+          passportUploadCompletedRef.current = false;
+        }
+
         setStepSnapshots((prev) => pruneStepSnapshotsAfter(prev, targetStepIndex));
         editingStepRef.current = targetStepIndex;
         setEditingStepIndex(targetStepIndex);
@@ -823,13 +911,14 @@ function ChatPage() {
     nextVisaDetails,
     nextPassportDetails,
     assistantMessages = [],
-    nextPassportSkipped = passportSkippedRef.current
+    nextPassportSkipped = passportSkippedRef.current,
+    nextPassportUploadCompleted = passportUploadCompletedRef.current
   ) => {
     const nextStepIndex = getNextStepIndex(
       currentStepIndex,
       nextPassportDetails,
       nextPassportSkipped,
-      isEditModeRef.current
+      nextPassportUploadCompleted
     );
 
     debugChatWorkflow("next step selected", {
@@ -868,11 +957,14 @@ function ChatPage() {
 
     if (["no", "n", "skip"].includes(normalizedAnswer)) {
       setPassportSkipped(true);
+      setPassportUploadCompleted(true);
+      passportUploadCompletedRef.current = true;
       await moveToNextStep(
         activeStepIndex,
         currentVisaDetails,
         currentPassportDetails,
         [],
+        true,
         true
       );
       return;
@@ -1001,13 +1093,19 @@ function ChatPage() {
       setVisaDetails(nextVisaDetails);
       setPassportDetails(nextPassportDetails);
 
+      if (hasRequiredPassportDetails(nextPassportDetails)) {
+        setPassportUploadCompleted(true);
+        passportUploadCompletedRef.current = true;
+      }
+
       if (isInPlaceEdit) {
         const resumeIndex =
-          resumeStepIndexRef.current ?? getNextStepIndex(
+          resumeStepIndexRef.current ??
+          getNextStepIndex(
             activeStepIndex,
             nextPassportDetails,
             passportSkippedRef.current,
-            isEditModeRef.current
+            passportUploadCompletedRef.current
           );
 
         editingStepRef.current = null;

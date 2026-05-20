@@ -214,7 +214,6 @@ function getAnsweredEditableSteps(visaDetails, passportDetails) {
 function clearAnswersFromStep(fromStepIndex, visaDetails, passportDetails) {
   let nextVisa = { ...visaDetails };
   let nextPassport = { ...passportDetails };
-  let clearPassportUploadCompletion = false;
 
   for (let index = fromStepIndex + 1; index < steps.length; index += 1) {
     const step = steps[index];
@@ -225,16 +224,12 @@ function clearAnswersFromStep(fromStepIndex, visaDetails, passportDetails) {
 
     if (step.target === "visaDetails") {
       nextVisa = { ...nextVisa, [step.key]: "" };
-    } else if (step.target === "passportDetails") {
-      clearPassportUploadCompletion = true;
-      nextPassport = { ...nextPassport, [step.key]: "" };
     }
   }
 
   return {
     visaDetails: nextVisa,
     passportDetails: nextPassport,
-    clearPassportUploadCompletion,
   };
 }
 
@@ -801,11 +796,6 @@ function ChatPage() {
         setPassportDetails(cleared.passportDetails);
         visaDetailsRef.current = cleared.visaDetails;
         passportDetailsRef.current = cleared.passportDetails;
-
-        if (cleared.clearPassportUploadCompletion) {
-          setPassportUploadCompleted(false);
-          passportUploadCompletedRef.current = false;
-        }
 
         setStepSnapshots((prev) => pruneStepSnapshotsAfter(prev, targetStepIndex));
         editingStepRef.current = targetStepIndex;

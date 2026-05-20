@@ -15,10 +15,8 @@ function toVisaApplicationPayload(applicationData = {}) {
   return {
     destinationCountry: visaDetails.destinationCountry,
     visaType: visaDetails.visaType,
-    purposeOfVisit: visaDetails.travelPurpose,
     durationOfStay: visaDetails.duration,
     travelDate: visaDetails.travelDate,
-    accommodationDetails: visaDetails.accommodationDetails,
     additionalNotes: visaDetails.additionalNotes,
     passportDetails,
     submittedAt: new Date(submittedAt),

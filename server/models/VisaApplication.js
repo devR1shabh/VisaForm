@@ -4,9 +4,7 @@ const visaApplicationSchema = new mongoose.Schema(
   {
     destinationCountry: String,
     visaType: String,
-    purposeOfVisit: String,
     durationOfStay: String,
-    accommodationDetails: String,
     additionalNotes: String,
     travelDate: String,
     passportDetails: {

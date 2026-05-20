@@ -97,19 +97,10 @@ function normalizeVisaDetails(visaDetails = {}, legacyData = {}) {
       visaDetails.destinationCountry || legacyData.country || ""
     ),
     visaType: titleCase(visaDetails.visaType || legacyData.visaType || ""),
-    travelPurpose: titleCase(
-      visaDetails.travelPurpose ||
-        visaDetails.purposeOfVisit ||
-        legacyData.purpose ||
-        ""
-    ),
     duration: titleCase(
       visaDetails.duration || visaDetails.durationOfStay || legacyData.duration || ""
     ),
     travelDate: cleanupField(visaDetails.travelDate || legacyData.travelDate || ""),
-    accommodationDetails: titleCase(
-      visaDetails.accommodationDetails || legacyData.accommodationDetails || ""
-    ),
     additionalNotes: titleCase(
       visaDetails.additionalNotes || legacyData.additionalNotes || ""
     ),

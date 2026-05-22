@@ -29,13 +29,24 @@ function ApplicantForm() {
   const navigate = useNavigate();
   const passportData = location.state?.passportData || {};
   const extractionError = location.state?.extractionError || "";
+  const extractedSex =
+    passportData.gender ||
+    (passportData.sex === "F"
+      ? "Female"
+      : passportData.sex === "M"
+        ? "Male"
+        : passportData.sex === "X"
+          ? "Other"
+          : passportData.sex || "");
 
   const [formData, setFormData] = useState({
     name: passportData.name || passportData.fullName || "",
     passportNumber: passportData.passportNumber || "",
     nationality: passportData.nationality || "",
-    sex: "",
+    issuingCountry: passportData.issuingCountry || "",
+    sex: extractedSex,
     dateOfBirth: passportData.dateOfBirth || "",
+    expiryDate: passportData.expiryDate || "",
   });
   const [error, setError] = useState("");
 
@@ -53,7 +64,9 @@ function ApplicantForm() {
       name: cleanupField(formData.name),
       passportNumber: cleanupField(formData.passportNumber),
       nationality: cleanupField(formData.nationality),
+      issuingCountry: cleanupField(formData.issuingCountry),
       dateOfBirth: cleanupField(formData.dateOfBirth),
+      expiryDate: cleanupField(formData.expiryDate),
     };
 
     if (
@@ -61,6 +74,14 @@ function ApplicantForm() {
       !isValidHtmlDate(cleanedFormData.dateOfBirth)
     ) {
       setError("Please enter a valid date of birth before continuing.");
+      return;
+    }
+
+    if (
+      cleanedFormData.expiryDate &&
+      !isValidHtmlDate(cleanedFormData.expiryDate)
+    ) {
+      setError("Please enter a valid passport expiry date before continuing.");
       return;
     }
 
@@ -143,20 +164,33 @@ function ApplicantForm() {
 
                 <label className="block">
                   <span className="mb-2 text-sm font-semibold text-slate-700">
-                    Gender
+                    Issuing Country
+                  </span>
+                  <Input
+                    type="text"
+                    name="issuingCountry"
+                    value={formData.issuingCountry}
+                    onChange={handleChange}
+                    placeholder="Not Detected"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 text-sm font-semibold text-slate-700">
+                    Sex
                   </span>
                   <Select
                     name="sex"
                     value={formData.sex}
                     onChange={handleChange}
                   >
-                    <option value="">Select Gender</option>
+                    <option value="">Select Sex</option>
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
                   </Select>
                 </label>
 
-                <label className="block md:col-span-2">
+                <label className="block">
                   <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
                     <Calendar className="h-4 w-4 text-emerald-700" />
                     Date of Birth
@@ -165,6 +199,19 @@ function ApplicantForm() {
                     type="date"
                     name="dateOfBirth"
                     value={formData.dateOfBirth}
+                    onChange={handleChange}
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+                    <Calendar className="h-4 w-4 text-emerald-700" />
+                    Expiry Date
+                  </span>
+                  <Input
+                    type="date"
+                    name="expiryDate"
+                    value={formData.expiryDate}
                     onChange={handleChange}
                   />
                 </label>

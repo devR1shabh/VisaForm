@@ -307,11 +307,18 @@ router.post("/generate-pdf", async (req, res) => {
         safeFallback(passportDetails.passportNumber),
       ],
       ["Nationality", safeFallback(passportDetails.nationality)],
-      ["Gender", safeFallback(passportDetails.sex)],
+      ["Issuing Country", safeFallback(passportDetails.issuingCountry)],
+      ["Sex", safeFallback(passportDetails.sex)],
       [
         "Date of Birth",
         passportDetails.dateOfBirth
           ? formatDate(passportDetails.dateOfBirth)
+          : "Not Provided",
+      ],
+      [
+        "Expiry Date",
+        passportDetails.expiryDate
+          ? formatDate(passportDetails.expiryDate)
           : "Not Provided",
       ],
     ]);

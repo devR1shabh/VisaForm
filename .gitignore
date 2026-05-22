@@ -3,3 +3,4 @@ dist
 .vscode
 .env 
 server/config/vision-key.json
+server/config/*.json

@@ -24,8 +24,10 @@ const emptyPassportData = {
   name: "",
   passportNumber: "",
   nationality: "",
+  issuingCountry: "",
   sex: "",
   dateOfBirth: "",
+  expiryDate: "",
 };
 
 function UploadPassport() {

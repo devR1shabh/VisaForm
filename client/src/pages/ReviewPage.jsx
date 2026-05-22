@@ -180,7 +180,7 @@ function ReviewPage() {
 
           {!hasRequiredDetails && (
             <div className="mb-6 rounded-3xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-              Required details are missing: full name, passport number, nationality, gender, date of birth, destination country, visa type, and duration are needed before PDF generation.
+              Required details are missing: full name, passport number, nationality, sex, date of birth, destination country, visa type, and duration are needed before PDF generation.
             </div>
           )}
 
@@ -197,11 +197,18 @@ function ReviewPage() {
               rows={[
                 ["Passport Number", safeFallback(passportDetails.passportNumber, "Not detected")],
                 ["Nationality", safeFallback(passportDetails.nationality, "Not detected")],
-                ["Gender", safeFallback(passportDetails.sex, "Not detected")],
+                ["Issuing Country", safeFallback(passportDetails.issuingCountry, "Not detected")],
+                ["Sex", safeFallback(passportDetails.sex, "Not detected")],
                 [
                   "Date of Birth",
                   passportDetails.dateOfBirth
                     ? formatDate(passportDetails.dateOfBirth)
+                    : "Not detected",
+                ],
+                [
+                  "Expiry Date",
+                  passportDetails.expiryDate
+                    ? formatDate(passportDetails.expiryDate)
                     : "Not detected",
                 ],
               ]}

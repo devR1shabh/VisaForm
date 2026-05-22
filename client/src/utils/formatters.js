@@ -93,18 +93,27 @@ export function isValidHtmlDate(value = "") {
 }
 
 export function normalizePassportDetails(passportDetails = {}) {
+  const rawSex = cleanupField(passportDetails.sex || passportDetails.gender);
   const gender = titleCase(
-    cleanupField(passportDetails.sex || passportDetails.gender)
+    rawSex === "F"
+      ? "Female"
+      : rawSex === "M"
+        ? "Male"
+        : rawSex === "X"
+          ? "Other"
+          : rawSex
   );
 
   return {
     name: titleCase(passportDetails.name || passportDetails.fullName || ""),
     passportNumber: cleanupField(passportDetails.passportNumber).toUpperCase(),
     nationality: titleCase(passportDetails.nationality),
+    issuingCountry: titleCase(passportDetails.issuingCountry),
     sex: ["Male", "Female", "Other"].includes(gender)
       ? gender
       : "",
     dateOfBirth: cleanupField(passportDetails.dateOfBirth),
+    expiryDate: cleanupField(passportDetails.expiryDate),
   };
 }
 

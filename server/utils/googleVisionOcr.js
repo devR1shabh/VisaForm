@@ -1,11 +1,14 @@
+const fs = require("fs");
 const path = require("path");
 const vision = require("@google-cloud/vision");
 
-const defaultKeyFile = path.join(__dirname, "..", "config", "vision-key.json.json");
+const defaultKeyFile = path.join(__dirname, "..", "config", "vision-key.json");
+const keyFilename = process.env.GOOGLE_APPLICATION_CREDENTIALS ||
+  (fs.existsSync(defaultKeyFile) ? defaultKeyFile : undefined);
 
-const client = new vision.ImageAnnotatorClient({
-  keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS || defaultKeyFile,
-});
+const client = new vision.ImageAnnotatorClient(
+  keyFilename ? { keyFilename } : {}
+);
 
 async function extractTextFromImage(imageBuffer) {
   const [result] = await client.textDetection({

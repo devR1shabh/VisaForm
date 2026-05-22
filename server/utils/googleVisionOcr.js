@@ -61,7 +61,7 @@ async function extractPassportOcr(images) {
     fullText,
     mrzText,
     lowerMrzText,
-    ...rotatedTexts,
+    ...rotatedTexts
   ] = await Promise.all(ocrTasks);
 
   return {

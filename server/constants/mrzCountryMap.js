@@ -280,19 +280,28 @@ function getMrzCountryEntry(value = "") {
   return mrzCountryMap[normalizeMrzCode(value)] || null;
 }
 
+function isValidMrzCountryCode(value = "") {
+  const code = normalizeMrzCode(value);
+
+  // ICAO permits some non-country/special values, but XXX is an
+  // unspecified placeholder. Treat it like OCR noise for display purposes.
+  return Boolean(code && code !== "XXX" && mrzCountryMap[code]);
+}
+
 function normalizeMrzIssuingCountry(value = "") {
-  const entry = getMrzCountryEntry(value);
-  return entry ? entry.issuingCountry : String(value).trim();
+  const entry = isValidMrzCountryCode(value) ? getMrzCountryEntry(value) : null;
+  return entry ? entry.issuingCountry : "";
 }
 
 function normalizeMrzNationality(value = "") {
-  const entry = getMrzCountryEntry(value);
-  return entry ? entry.nationality : String(value).trim();
+  const entry = isValidMrzCountryCode(value) ? getMrzCountryEntry(value) : null;
+  return entry ? entry.nationality : "";
 }
 
 module.exports = {
   mrzCountryMap,
   getMrzCountryEntry,
+  isValidMrzCountryCode,
   normalizeMrzCode,
   normalizeMrzIssuingCountry,
   normalizeMrzNationality,

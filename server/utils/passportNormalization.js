@@ -1,4 +1,5 @@
 const {
+  isValidMrzCountryCode,
   mrzCountryMap,
   normalizeMrzIssuingCountry,
   normalizeMrzNationality,
@@ -30,15 +31,20 @@ function normalizeSexDisplay(value = "") {
 
 function normalizeCountryDisplay(value = "", field = "issuingCountry") {
   const cleanedValue = cleanupField(value);
+  const looksLikeMrzCode = /^[A-Z]{3}$/.test(cleanedValue.toUpperCase());
 
   if (!cleanedValue) return "";
 
-  const normalized =
-    field === "nationality"
+  const normalized = looksLikeMrzCode
+    ? field === "nationality"
       ? normalizeMrzNationality(cleanedValue)
-      : normalizeMrzIssuingCountry(cleanedValue);
+      : normalizeMrzIssuingCountry(cleanedValue)
+    : cleanedValue;
 
   if (normalized !== cleanedValue) return normalized;
+  // Reject unrecognized three-letter MRZ-like values instead of displaying
+  // OCR garbage such as RAM, ABC, AAA, or the unspecified placeholder XXX.
+  if (looksLikeMrzCode && !isValidMrzCountryCode(cleanedValue)) return "";
   if (
     cleanedValue.length > 3 &&
     (cleanedValue === cleanedValue.toUpperCase() ||
@@ -82,6 +88,7 @@ module.exports = {
       entry.issuingCountry,
     ])
   ),
+  isValidMrzCountryCode,
   mrzCountryMap,
   normalizeCountryDisplay,
   normalizeIssuingCountryDisplay,

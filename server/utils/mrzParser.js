@@ -1,4 +1,5 @@
 const {
+  isValidMrzCountryCode,
   normalizeIssuingCountryDisplay,
   normalizeNationalityDisplay,
   normalizePassportDetails,
@@ -138,6 +139,7 @@ function addCandidate(candidates, first, second) {
   candidates.push([
     normalizeFirstLine(firstLine),
     normalizeSecondLine(second),
+    normalizeMrzLine(firstLine),
   ]);
 }
 
@@ -183,21 +185,112 @@ function buildMrzCandidates(text = "") {
   const compactMatch = compactText.match(/(P<[A-Z0-9<]{42})([A-Z0-9<]{44})/);
 
   if (compactMatch) {
+    const rawFirstLine = normalizeMrzLine(compactMatch[1]);
+
     candidates.push([
-      normalizeFirstLine(compactMatch[1]),
+      normalizeFirstLine(rawFirstLine),
       normalizeSecondLine(compactMatch[2]),
+      rawFirstLine,
     ]);
   }
 
   return candidates;
 }
 
+function cleanCountryCode(code = "") {
+  return normalizeAlphaField(code).replace(/</g, "");
+}
+
+function isValidCountryCode(code = "") {
+  return isValidMrzCountryCode(cleanCountryCode(code));
+}
+
 function issuingCountryName(code = "") {
-  return normalizeIssuingCountryDisplay(normalizeAlphaField(code).replace(/</g, ""));
+  const cleanedCode = cleanCountryCode(code);
+
+  // Country/nationality fields are only trusted when the code is known.
+  // This prevents sliced surname fragments such as RAM from becoming output.
+  return isValidCountryCode(cleanedCode)
+    ? normalizeIssuingCountryDisplay(cleanedCode)
+    : "";
 }
 
 function nationalityName(code = "") {
-  return normalizeNationalityDisplay(normalizeAlphaField(code).replace(/</g, ""));
+  const cleanedCode = cleanCountryCode(code);
+
+  return isValidCountryCode(cleanedCode)
+    ? normalizeNationalityDisplay(cleanedCode)
+    : "";
+}
+
+function findValidCountryCodes(text = "") {
+  const normalizedLines = getLines(text).map(normalizeMrzLine).filter(Boolean);
+  const codes = [];
+
+  function addCode(code = "") {
+    const cleanedCode = cleanCountryCode(code);
+
+    if (
+      cleanedCode.length === 3 &&
+      isValidCountryCode(cleanedCode) &&
+      !codes.includes(cleanedCode)
+    ) {
+      codes.push(cleanedCode);
+    }
+  }
+
+  normalizedLines.forEach((line) => {
+    const split = splitLongMrzLine(line);
+    const candidateLines = split.length ? split : [line];
+
+    candidateLines.forEach((candidateLine) => {
+      if (candidateLine.startsWith("P<")) {
+        addCode(candidateLine.slice(2, 5));
+      } else if (candidateLine.length >= 13 && !candidateLine.startsWith("P<")) {
+        addCode(candidateLine.slice(10, 13));
+      }
+    });
+  });
+
+  const compactText = normalizeMrzLine(text);
+  const compactMatch = compactText.match(/(P<[A-Z0-9<]{42})([A-Z0-9<]{44})/);
+
+  if (compactMatch) {
+    addCode(compactMatch[1].slice(2, 5));
+    addCode(compactMatch[2].slice(10, 13));
+  }
+
+  return codes;
+}
+
+function recoverCountryCode({
+  currentCode = "",
+  pairedCode = "",
+  ocrText = "",
+} = {}) {
+  if (isValidCountryCode(currentCode)) return cleanCountryCode(currentCode);
+
+  // Fallback is deliberately narrow: only when the sliced field is invalid,
+  // first trust the paired MRZ country field, then scan OCR text for known
+  // ICAO codes. Unknown three-letter chunks are ignored, never promoted.
+  if (isValidCountryCode(pairedCode)) return cleanCountryCode(pairedCode);
+
+  return findValidCountryCodes(ocrText)[0] || "";
+}
+
+function rebuildFirstLineWithRecoveredCountry(rawFirstLine, recoveredCode) {
+  const source = normalizeMrzLine(rawFirstLine);
+
+  if (!source.startsWith("P<") || !isValidCountryCode(recoveredCode)) {
+    return "";
+  }
+
+  // Some noisy/older OCR results drop the issuing-country segment, yielding
+  // P<SURNAME...; when that happens, positions 2-5 are name letters, not a
+  // country. Reinsert the recovered valid code and keep the name from after P<.
+  const names = normalizeAlphaField(source.slice(2)).padEnd(39, "<");
+
+  return `P<${cleanCountryCode(recoveredCode)}${names}`.slice(0, 44);
 }
 
 function mrzCharValue(character) {
@@ -266,9 +359,9 @@ function sexLabel(sex = "") {
   return normalizeSexDisplay(sex);
 }
 
-function parseName(firstLine = "") {
-  const nameSection = firstLine.slice(5).replace(/<+$/g, "");
-  const [surname = "", given = ""] = nameSection.split("<<");
+function parseNameSection(nameSection = "") {
+  const cleanedNameSection = nameSection.replace(/<+$/g, "");
+  const [surname = "", given = ""] = cleanedNameSection.split("<<");
 
   return [given, surname]
     .join(" ")
@@ -279,11 +372,38 @@ function parseName(firstLine = "") {
     .join(" ");
 }
 
-function parseCandidate(firstLine, secondLine) {
+function parseName(firstLine = "") {
+  return parseNameSection(firstLine.slice(5));
+}
+
+function parseNameWithoutCountry(rawFirstLine = "") {
+  const source = normalizeMrzLine(rawFirstLine);
+
+  if (!source.startsWith("P<")) return "";
+
+  return parseNameSection(source.slice(2));
+}
+
+function parseCandidate(firstLine, secondLine, rawFirstLine = "", ocrText = "") {
   const passportRaw = secondLine.slice(0, 9);
   const passportNumber = passportRaw.replace(/</g, "");
-  const issuingCode = firstLine.slice(2, 5);
-  const nationalityCode = secondLine.slice(10, 13);
+  const parsedIssuingCode = firstLine.slice(2, 5);
+  const parsedNationalityCode = secondLine.slice(10, 13);
+  const recoveredNationalityCode = recoverCountryCode({
+    currentCode: parsedNationalityCode,
+    pairedCode: parsedIssuingCode,
+    ocrText,
+  });
+  const recoveredIssuingCode = recoverCountryCode({
+    currentCode: parsedIssuingCode,
+    pairedCode: recoveredNationalityCode || parsedNationalityCode,
+    ocrText,
+  });
+  const effectiveFirstLine =
+    isValidCountryCode(parsedIssuingCode) || !recoveredIssuingCode
+      ? firstLine
+      : rebuildFirstLineWithRecoveredCountry(rawFirstLine, recoveredIssuingCode) ||
+        firstLine;
   const sex = normalizeSex(secondLine.slice(20, 21));
   const dateOfBirth = formatMrzDate(secondLine.slice(13, 19), "past");
   const expiryDate = formatMrzDate(secondLine.slice(21, 27), "future");
@@ -297,12 +417,16 @@ function parseCandidate(firstLine, secondLine) {
       secondLine.charAt(43)
     ),
   };
+  const fullName =
+    !isValidCountryCode(parsedIssuingCode) && effectiveFirstLine === firstLine
+      ? parseNameWithoutCountry(rawFirstLine) || parseName(effectiveFirstLine)
+      : parseName(effectiveFirstLine);
 
   const passportData = normalizePassportDetails({
-    fullName: parseName(firstLine),
+    fullName,
     passportNumber,
-    nationality: nationalityName(nationalityCode),
-    issuingCountry: issuingCountryName(issuingCode),
+    nationality: nationalityName(recoveredNationalityCode),
+    issuingCountry: issuingCountryName(recoveredIssuingCode),
     sex,
     dateOfBirth,
     expiryDate,
@@ -331,14 +455,14 @@ function parseCandidate(firstLine, secondLine) {
     success: Boolean(hasRequiredMrzFields),
     confidence: Math.round(((fieldScore / 7) * 0.55 + (checkScore / 4) * 0.45) * 100),
     checks,
-    mrzLines: [firstLine, secondLine],
+    mrzLines: [effectiveFirstLine, secondLine],
     passportData,
   };
 }
 
 function parseMrz(text = "") {
-  const candidates = buildMrzCandidates(text).map(([firstLine, secondLine]) =>
-    parseCandidate(firstLine, secondLine)
+  const candidates = buildMrzCandidates(text).map(([firstLine, secondLine, rawFirstLine]) =>
+    parseCandidate(firstLine, secondLine, rawFirstLine, text)
   );
 
   const best = candidates.sort((a, b) => b.confidence - a.confidence)[0];

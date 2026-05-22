@@ -443,6 +443,11 @@ function formatPassportSummary(passportDetails) {
         ? formatDate(normalizedPassportDetails.dateOfBirth)
         : "Not detected"
     }`,
+    `- **Expiry Date:** ${
+      normalizedPassportDetails.expiryDate
+        ? formatDate(normalizedPassportDetails.expiryDate)
+        : "Not detected"
+    }`,
   ].join("\n");
 }
 

@@ -27,7 +27,7 @@ import {
 function ApplicantForm() {
   const location = useLocation();
   const navigate = useNavigate();
-  const passportData = location.state?.passportData || {};
+  const passportData = normalizePassportDetails(location.state?.passportData || {});
   const extractionError = location.state?.extractionError || "";
 
   const [formData, setFormData] = useState({

@@ -19,6 +19,7 @@ import {
   StatusBadge,
 } from "../components/ui";
 import { fadeUp } from "../components/animations";
+import { normalizePassportDetails } from "../utils/formatters";
 
 const emptyPassportData = {
   name: "",
@@ -96,7 +97,7 @@ function UploadPassport() {
 
       navigate("/form", {
         state: {
-          passportData: response.data.passportData,
+          passportData: normalizePassportDetails(response.data.passportData),
         },
       });
     } catch (error) {

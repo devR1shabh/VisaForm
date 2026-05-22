@@ -1,5 +1,6 @@
 const {
-  normalizeCountryDisplay,
+  normalizeIssuingCountryDisplay,
+  normalizeNationalityDisplay,
   normalizePassportDetails,
   normalizeSexDisplay,
 } = require("./passportNormalization");
@@ -191,8 +192,12 @@ function buildMrzCandidates(text = "") {
   return candidates;
 }
 
-function countryName(code = "") {
-  return normalizeCountryDisplay(normalizeAlphaField(code).replace(/</g, ""));
+function issuingCountryName(code = "") {
+  return normalizeIssuingCountryDisplay(normalizeAlphaField(code).replace(/</g, ""));
+}
+
+function nationalityName(code = "") {
+  return normalizeNationalityDisplay(normalizeAlphaField(code).replace(/</g, ""));
 }
 
 function mrzCharValue(character) {
@@ -296,8 +301,8 @@ function parseCandidate(firstLine, secondLine) {
   const passportData = normalizePassportDetails({
     fullName: parseName(firstLine),
     passportNumber,
-    nationality: countryName(nationalityCode),
-    issuingCountry: countryName(issuingCode),
+    nationality: nationalityName(nationalityCode),
+    issuingCountry: issuingCountryName(issuingCode),
     sex,
     dateOfBirth,
     expiryDate,

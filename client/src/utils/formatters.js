@@ -1,3 +1,8 @@
+import {
+  normalizeMrzIssuingCountry,
+  normalizeMrzNationality,
+} from "../constants/mrzCountryMap";
+
 const fallbackText = "Not Provided";
 const notDetectedText = "Not detected";
 
@@ -91,12 +96,44 @@ export function normalizePassportDetails(passportDetails = {}) {
   return {
     name: titleCase(passportDetails.name || passportDetails.fullName || ""),
     passportNumber: cleanupField(passportDetails.passportNumber).toUpperCase(),
-    nationality: titleCase(passportDetails.nationality),
-    issuingCountry: titleCase(passportDetails.issuingCountry),
+    nationality: normalizeNationalityDisplay(passportDetails.nationality),
+    issuingCountry: normalizeIssuingCountryDisplay(passportDetails.issuingCountry),
     sex: titleCase(passportDetails.sex),
     dateOfBirth: cleanupField(passportDetails.dateOfBirth),
     expiryDate: cleanupField(passportDetails.expiryDate),
   };
+}
+
+export function normalizeIssuingCountryDisplay(value = "") {
+  const cleanedValue = cleanupField(value);
+  const normalized = normalizeMrzIssuingCountry(cleanedValue);
+
+  if (!cleanedValue) return "";
+  if (normalized !== cleanedValue) return normalized;
+  if (
+    cleanedValue.length > 3 &&
+    (cleanedValue === cleanedValue.toUpperCase() ||
+      cleanedValue === cleanedValue.toLowerCase())
+  ) {
+    return titleCase(cleanedValue);
+  }
+  return cleanedValue;
+}
+
+export function normalizeNationalityDisplay(value = "") {
+  const cleanedValue = cleanupField(value);
+  const normalized = normalizeMrzNationality(cleanedValue);
+
+  if (!cleanedValue) return "";
+  if (normalized !== cleanedValue) return normalized;
+  if (
+    cleanedValue.length > 3 &&
+    (cleanedValue === cleanedValue.toUpperCase() ||
+      cleanedValue === cleanedValue.toLowerCase())
+  ) {
+    return titleCase(cleanedValue);
+  }
+  return cleanedValue;
 }
 
 export function normalizeVisaDetails(visaDetails = {}) {

@@ -62,8 +62,10 @@ const emptyPassportDetails = {
   name: "",
   passportNumber: "",
   nationality: "",
+  issuingCountry: "",
   sex: "",
   dateOfBirth: "",
+  expiryDate: "",
 };
 
 const steps = [
@@ -302,10 +304,10 @@ function loadDraft() {
         ...initialVisaDetails,
         ...(savedDraft.visaDetails || {}),
       },
-      passportDetails: {
+      passportDetails: normalizePassportDetails({
         ...emptyPassportDetails,
         ...(savedDraft.passportDetails || {}),
-      },
+      }),
       passportSkipped: Boolean(savedDraft.passportSkipped),
       passportUploadCompleted: Boolean(savedDraft.passportUploadCompleted),
       stepIndex: Math.min(Math.max(savedStepIndex, 0), steps.length),
@@ -605,10 +607,10 @@ function ChatPage() {
   const restoredDraft = useMemo(() => loadDraft(), []);
   const incomingPassportData = location.state?.passportData;
   const initialChatState = useMemo(() => {
-    const restoredPassportDetails = {
+    const restoredPassportDetails = normalizePassportDetails({
       ...restoredDraft.passportDetails,
       ...(incomingPassportData || {}),
-    };
+    });
 
     return resolveInitialChatState(
       restoredDraft,
@@ -713,7 +715,7 @@ function ChatPage() {
   useEffect(() => {
     const draft = {
       visaDetails,
-      passportDetails,
+      passportDetails: normalizePassportDetails(passportDetails),
       passportSkipped,
       passportUploadCompleted:
         passportUploadCompleted || hasRequiredPassportDetails(passportDetails),
@@ -1086,9 +1088,12 @@ function ChatPage() {
           : currentPassportDetails;
 
       setVisaDetails(nextVisaDetails);
-      setPassportDetails(nextPassportDetails);
+      const normalizedNextPassportDetails =
+        normalizePassportDetails(nextPassportDetails);
 
-      if (hasRequiredPassportDetails(nextPassportDetails)) {
+      setPassportDetails(normalizedNextPassportDetails);
+
+      if (hasRequiredPassportDetails(normalizedNextPassportDetails)) {
         setPassportUploadCompleted(true);
         passportUploadCompletedRef.current = true;
       }
@@ -1098,7 +1103,7 @@ function ChatPage() {
           resumeStepIndexRef.current ??
           getNextStepIndex(
             activeStepIndex,
-            nextPassportDetails,
+            normalizedNextPassportDetails,
             passportSkippedRef.current,
             passportUploadCompletedRef.current
           );
@@ -1120,7 +1125,7 @@ function ChatPage() {
       await moveToNextStep(
         activeStepIndex,
         nextVisaDetails,
-        nextPassportDetails,
+        normalizedNextPassportDetails,
         []
       );
     } finally {

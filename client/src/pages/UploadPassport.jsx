@@ -200,7 +200,7 @@ function UploadPassport() {
                     <AlertTriangle className="mt-0.5 h-5 w-5 flex-none" />
                     <div>
                       <p className="font-semibold">Extraction needs review</p>
-                      <p className="mt-1 text-sm">{error}</p>
+                      <p className="mt-1 text-sm">{error}</p>  
                       <Button
                         type="button"
                         variant="secondary"

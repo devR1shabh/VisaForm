@@ -1,5 +1,6 @@
 const fs = require("fs");
 const path = require("path");
+const crypto = require("crypto");
 const vision = require("@google-cloud/vision");
 
 const defaultKeyFile = path.join(
@@ -11,10 +12,63 @@ const defaultKeyFile = path.join(
 
 let client;
 
-if (process.env.GOOGLE_CREDENTIALS_JSON) {
-  const credentials = JSON.parse(
-    process.env.GOOGLE_CREDENTIALS_JSON
-  );
+function parseCredentialsJson(value) {
+  const rawValue = String(value || "").trim();
+
+  try {
+    return JSON.parse(rawValue);
+  } catch (jsonError) {
+    try {
+      return JSON.parse(Buffer.from(rawValue, "base64").toString("utf8"));
+    } catch (base64Error) {
+      throw new Error(
+        "GOOGLE_CREDENTIALS_JSON must be valid service-account JSON or base64-encoded JSON"
+      );
+    }
+  }
+}
+
+function normalizePrivateKey(privateKey = "") {
+  return String(privateKey)
+    .replace(/^["']|["']$/g, "")
+    .replace(/\\r\\n/g, "\n")
+    .replace(/\\n/g, "\n")
+    .replace(/\r\n/g, "\n")
+    .trim();
+}
+
+function loadEnvCredentials() {
+  const credentialsValue =
+    process.env.GOOGLE_CREDENTIALS_JSON_BASE64 ||
+    process.env.GOOGLE_CREDENTIALS_JSON;
+  const credentials = parseCredentialsJson(credentialsValue);
+
+  if (credentials.private_key) {
+    credentials.private_key = normalizePrivateKey(credentials.private_key);
+  }
+
+  if (!credentials.client_email || !credentials.private_key) {
+    throw new Error(
+      "GOOGLE_CREDENTIALS_JSON is missing client_email or private_key"
+    );
+  }
+
+  try {
+    crypto.createPrivateKey(credentials.private_key);
+  } catch (error) {
+    throw new Error(
+      "GOOGLE_CREDENTIALS_JSON private_key is not a valid PEM key. Re-copy the service account JSON or set GOOGLE_CREDENTIALS_JSON_BASE64."
+    );
+  }
+
+  return credentials;
+}
+
+if (
+  process.env.GOOGLE_CREDENTIALS_JSON ||
+  process.env.GOOGLE_CREDENTIALS_JSON_BASE64
+) {
+  const credentials = loadEnvCredentials();
 
   client = new vision.ImageAnnotatorClient({
     credentials,

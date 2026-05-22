@@ -181,7 +181,7 @@ export function validateDateOfBirth(value = "") {
   };
 }
 
-export function validateGender(value = "") {
+export function validateSex(value = "") {
   const cleanedValue = cleanupField(value).toLowerCase();
 
   const allowedValues = ["male", "female", "other"];
@@ -190,7 +190,7 @@ export function validateGender(value = "") {
     return {
       isValid: false,
       message:
-        'Please enter a valid gender: Male, Female, or Other.',
+        'Please enter a valid sex: Male, Female, or Other.',
     };
   }
 

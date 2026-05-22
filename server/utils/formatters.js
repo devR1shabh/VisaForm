@@ -1,3 +1,7 @@
+const {
+  normalizePassportDetails: normalizeBackendPassportDetails,
+} = require("./passportNormalization");
+
 const fallbackText = "Not Provided";
 
 const smallWords = new Set([
@@ -59,14 +63,7 @@ function formatDate(value = "") {
   if (!cleanedValue) return fallbackText;
   if (!isValidHtmlDate(cleanedValue)) return cleanedValue;
 
-  const date = new Date(`${cleanedValue}T00:00:00Z`);
-
-  return date.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+  return cleanedValue;
 }
 
 function safeFallback(value = "", fallback = fallbackText) {
@@ -76,27 +73,18 @@ function safeFallback(value = "", fallback = fallbackText) {
 }
 
 function normalizePassportDetails(passportDetails = {}) {
-  const rawSex = cleanupField(passportDetails.sex || passportDetails.gender);
-  const gender = titleCase(
-    rawSex === "F"
-      ? "Female"
-      : rawSex === "M"
-        ? "Male"
-        : rawSex === "X"
-          ? "Other"
-          : rawSex
-  );
+  const normalizedPassportDetails =
+    normalizeBackendPassportDetails(passportDetails);
 
   return {
-    name: titleCase(passportDetails.name || passportDetails.fullName || ""),
-    passportNumber: cleanupField(passportDetails.passportNumber).toUpperCase(),
-    nationality: titleCase(passportDetails.nationality),
-    issuingCountry: titleCase(passportDetails.issuingCountry),
-    sex: ["Male", "Female", "Other"].includes(gender)
-      ? gender
-      : "",
-    dateOfBirth: cleanupField(passportDetails.dateOfBirth),
-    expiryDate: cleanupField(passportDetails.expiryDate),
+    name: titleCase(normalizedPassportDetails.fullName),
+    fullName: titleCase(normalizedPassportDetails.fullName),
+    passportNumber: normalizedPassportDetails.passportNumber,
+    nationality: normalizedPassportDetails.nationality,
+    issuingCountry: normalizedPassportDetails.issuingCountry,
+    sex: normalizedPassportDetails.sex,
+    dateOfBirth: normalizedPassportDetails.dateOfBirth,
+    expiryDate: normalizedPassportDetails.expiryDate,
   };
 }
 

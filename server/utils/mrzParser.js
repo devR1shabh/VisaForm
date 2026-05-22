@@ -1,3 +1,9 @@
+const {
+  normalizeCountryDisplay,
+  normalizePassportDetails,
+  normalizeSexDisplay,
+} = require("./passportNormalization");
+
 function emptyPassportData() {
   return {
     fullName: "",
@@ -8,7 +14,6 @@ function emptyPassportData() {
     dateOfBirth: "",
     expiryDate: "",
     name: "",
-    gender: "",
   };
 }
 
@@ -187,7 +192,7 @@ function buildMrzCandidates(text = "") {
 }
 
 function countryName(code = "") {
-  return normalizeAlphaField(code).replace(/</g, "");
+  return normalizeCountryDisplay(normalizeAlphaField(code).replace(/</g, ""));
 }
 
 function mrzCharValue(character) {
@@ -253,10 +258,7 @@ function normalizeSex(value = "") {
 }
 
 function sexLabel(sex = "") {
-  if (sex === "M") return "Male";
-  if (sex === "F") return "Female";
-  if (sex === "X") return "Other";
-  return "";
+  return normalizeSexDisplay(sex);
 }
 
 function parseName(firstLine = "") {
@@ -291,7 +293,7 @@ function parseCandidate(firstLine, secondLine) {
     ),
   };
 
-  const passportData = {
+  const passportData = normalizePassportDetails({
     fullName: parseName(firstLine),
     passportNumber,
     nationality: countryName(nationalityCode),
@@ -299,10 +301,7 @@ function parseCandidate(firstLine, secondLine) {
     sex,
     dateOfBirth,
     expiryDate,
-  };
-
-  passportData.name = passportData.fullName;
-  passportData.gender = sexLabel(passportData.sex);
+  });
 
   const fieldScore = [
     passportData.fullName,
@@ -317,8 +316,8 @@ function parseCandidate(firstLine, secondLine) {
   const hasRequiredMrzFields =
     passportData.fullName &&
     passportData.passportNumber &&
-    /^[A-Z]{3}$/.test(passportData.nationality) &&
-    /^[A-Z]{3}$/.test(passportData.issuingCountry) &&
+    passportData.nationality &&
+    passportData.issuingCountry &&
     passportData.sex &&
     passportData.dateOfBirth &&
     passportData.expiryDate;

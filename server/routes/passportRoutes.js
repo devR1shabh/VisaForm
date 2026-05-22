@@ -5,8 +5,10 @@ const { extractTextFromImage } = require("../utils/ocrSpace");
 const {
   emptyPassportData,
   parseMrz,
-  sexLabel,
 } = require("../utils/mrzParser");
+const {
+  normalizePassportDetails,
+} = require("../utils/passportNormalization");
 
 const router = express.Router();
 
@@ -19,30 +21,27 @@ function decodeBase64Image(imageBase64 = "") {
 }
 
 function compatiblePassportData(passportData = {}) {
-  const fullName = passportData.fullName || passportData.name || "";
-  const sex = passportData.sex || "";
-  const gender = passportData.gender || sexLabel(sex);
+  const normalizedPassportData = normalizePassportDetails(passportData);
 
   return {
-    fullName,
-    passportNumber: passportData.passportNumber || "",
-    nationality: passportData.nationality || "",
-    issuingCountry: passportData.issuingCountry || "",
-    sex,
-    dateOfBirth: passportData.dateOfBirth || "",
-    expiryDate: passportData.expiryDate || "",
-    name: fullName,
-    gender,
+    fullName: normalizedPassportData.fullName,
+    passportNumber: normalizedPassportData.passportNumber,
+    nationality: normalizedPassportData.nationality,
+    issuingCountry: normalizedPassportData.issuingCountry,
+    sex: normalizedPassportData.sex,
+    dateOfBirth: normalizedPassportData.dateOfBirth,
+    expiryDate: normalizedPassportData.expiryDate,
+    name: normalizedPassportData.fullName,
   };
 }
 
 function responseData(passportData = {}) {
   return {
     fullName: passportData.fullName || "",
-    passportNumber: passportData.passportNumber || "",
+    sex: passportData.sex || "",
     nationality: passportData.nationality || "",
     issuingCountry: passportData.issuingCountry || "",
-    sex: passportData.sex || "",
+    passportNumber: passportData.passportNumber || "",
     dateOfBirth: passportData.dateOfBirth || "",
     expiryDate: passportData.expiryDate || "",
   };

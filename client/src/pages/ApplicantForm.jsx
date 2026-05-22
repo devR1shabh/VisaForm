@@ -29,22 +29,13 @@ function ApplicantForm() {
   const navigate = useNavigate();
   const passportData = location.state?.passportData || {};
   const extractionError = location.state?.extractionError || "";
-  const extractedSex =
-    passportData.gender ||
-    (passportData.sex === "F"
-      ? "Female"
-      : passportData.sex === "M"
-        ? "Male"
-        : passportData.sex === "X"
-          ? "Other"
-          : passportData.sex || "");
 
   const [formData, setFormData] = useState({
     name: passportData.name || passportData.fullName || "",
     passportNumber: passportData.passportNumber || "",
     nationality: passportData.nationality || "",
     issuingCountry: passportData.issuingCountry || "",
-    sex: extractedSex,
+    sex: passportData.sex || "",
     dateOfBirth: passportData.dateOfBirth || "",
     expiryDate: passportData.expiryDate || "",
   });
@@ -187,6 +178,7 @@ function ApplicantForm() {
                     <option value="">Select Sex</option>
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
+                    <option value="Other">Other</option>
                   </Select>
                 </label>
 

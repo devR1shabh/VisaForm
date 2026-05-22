@@ -57,12 +57,7 @@ export function formatDate(value = "") {
     return fallbackText;
   }
 
-  return date.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+  return cleanedValue;
 }
 
 export function safeFallback(value = "", fallback = fallbackText) {
@@ -93,25 +88,12 @@ export function isValidHtmlDate(value = "") {
 }
 
 export function normalizePassportDetails(passportDetails = {}) {
-  const rawSex = cleanupField(passportDetails.sex || passportDetails.gender);
-  const gender = titleCase(
-    rawSex === "F"
-      ? "Female"
-      : rawSex === "M"
-        ? "Male"
-        : rawSex === "X"
-          ? "Other"
-          : rawSex
-  );
-
   return {
     name: titleCase(passportDetails.name || passportDetails.fullName || ""),
     passportNumber: cleanupField(passportDetails.passportNumber).toUpperCase(),
     nationality: titleCase(passportDetails.nationality),
     issuingCountry: titleCase(passportDetails.issuingCountry),
-    sex: ["Male", "Female", "Other"].includes(gender)
-      ? gender
-      : "",
+    sex: titleCase(passportDetails.sex),
     dateOfBirth: cleanupField(passportDetails.dateOfBirth),
     expiryDate: cleanupField(passportDetails.expiryDate),
   };

@@ -39,7 +39,7 @@ import {
   validateCountry,
   validateDateOfBirth,
   validateDuration,
-  validateGender,
+  validateSex,
   validateName,
   validateNationality,
   validatePassport,
@@ -131,9 +131,9 @@ const steps = [
 {
   key: "sex",
   target: "passportDetails",
-  question: "Select your gender.",
+  question: "Select your sex.",
   options: ["Male", "Female", "Other"],
-  validate: validateGender,
+  validate: validateSex,
   manualPassportOnly: true,
 },
 
@@ -159,7 +159,7 @@ const EDIT_CHIP_LABELS = {
   name: "Name",
   passportNumber: "Passport",
   nationality: "Nationality",
-  sex: "Gender",
+  sex: "Sex",
   dateOfBirth: "Date of Birth",
 };
 
@@ -437,7 +437,7 @@ function formatPassportSummary(passportDetails) {
     `- **Name:** ${formatDetected(normalizedPassportDetails.name)}`,
     `- **Passport Number:** ${formatDetected(normalizedPassportDetails.passportNumber)}`,
     `- **Nationality:** ${formatDetected(normalizedPassportDetails.nationality)}`,
-    `- **Gender:** ${formatDetected(normalizedPassportDetails.sex)}`,
+    `- **Sex:** ${formatDetected(normalizedPassportDetails.sex)}`,
     `- **Date of Birth:** ${
       normalizedPassportDetails.dateOfBirth
         ? formatDate(normalizedPassportDetails.dateOfBirth)

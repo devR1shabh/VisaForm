@@ -158,11 +158,6 @@ const EDIT_CHIP_LABELS = {
   duration: "Duration",
   travelDate: "Travel Date",
   additionalNotes: "Notes",
-  name: "Name",
-  passportNumber: "Passport",
-  nationality: "Nationality",
-  sex: "Sex",
-  dateOfBirth: "Date of Birth",
 };
 
 function requiresCascadeReset(stepKey = "") {
@@ -187,7 +182,7 @@ function getStepAnswerValue(step, visaDetails, passportDetails) {
   return "";
 }
 
-function getAnsweredEditableSteps(visaDetails, passportDetails) {
+function getAnsweredEditableSteps(visaDetails) {
   const editable = [];
 
   for (let stepIndex = 0; stepIndex < steps.length; stepIndex += 1) {
@@ -197,7 +192,11 @@ function getAnsweredEditableSteps(visaDetails, passportDetails) {
       continue;
     }
 
-    const value = getStepAnswerValue(step, visaDetails, passportDetails);
+    if (step.target !== "visaDetails") {
+      continue;
+    }
+
+    const value = getStepAnswerValue(step, visaDetails, {});
 
     if (!value) {
       continue;
@@ -308,6 +307,7 @@ function loadDraft() {
         ...emptyPassportDetails,
         ...(savedDraft.passportDetails || {}),
       }),
+      passportIdentityLocked: Boolean(savedDraft.passportIdentityLocked),
       passportSkipped: Boolean(savedDraft.passportSkipped),
       passportUploadCompleted: Boolean(savedDraft.passportUploadCompleted),
       stepIndex: Math.min(Math.max(savedStepIndex, 0), steps.length),
@@ -316,6 +316,7 @@ function loadDraft() {
     return {
       visaDetails: initialVisaDetails,
       passportDetails: emptyPassportDetails,
+      passportIdentityLocked: false,
       passportSkipped: false,
       passportUploadCompleted: false,
       stepIndex: 0,
@@ -368,19 +369,25 @@ function getNextStepIndex(
   currentStepIndex,
   passportDetails,
   passportSkipped,
-  passportUploadCompleted = false
+  passportUploadCompleted = false,
+  passportIdentityLocked = false
 ) {
   for (let index = currentStepIndex + 1; index < steps.length; index += 1) {
     const step = steps[index];
 
     if (
       step.key === "passportUpload" &&
-      isPassportUploadStepComplete(passportDetails, passportUploadCompleted)
+      (passportIdentityLocked ||
+        isPassportUploadStepComplete(passportDetails, passportUploadCompleted))
     ) {
       continue;
     }
 
     if (step.manualPassportOnly) {
+      if (passportIdentityLocked) {
+        continue;
+      }
+
       if (isPassportStepAnswered(step, passportDetails)) {
         continue;
       }
@@ -400,7 +407,8 @@ function advancePastCompletedSteps(
   stepIndex,
   passportDetails,
   passportSkipped,
-  passportUploadCompleted
+  passportUploadCompleted,
+  passportIdentityLocked = false
 ) {
   let index = Math.min(Math.max(stepIndex, 0), steps.length);
 
@@ -410,12 +418,13 @@ function advancePastCompletedSteps(
       passportDetails,
       passportUploadCompleted
     );
+    const lockedPassportComplete = passportIdentityLocked || passportUploadComplete;
 
     const shouldAdvance =
-      (step.key === "passportUpload" && passportUploadComplete) ||
+      (step.key === "passportUpload" && lockedPassportComplete) ||
       (step.manualPassportOnly &&
         (isPassportStepAnswered(step, passportDetails) ||
-          (!passportSkipped && passportUploadComplete)));
+          (!passportSkipped && lockedPassportComplete)));
 
     if (!shouldAdvance) {
       break;
@@ -425,7 +434,8 @@ function advancePastCompletedSteps(
       index,
       passportDetails,
       passportSkipped,
-      passportUploadCompleted
+      passportUploadCompleted,
+      passportIdentityLocked
     );
   }
 
@@ -439,6 +449,7 @@ function formatPassportSummary(passportDetails) {
     `- **Name:** ${formatDetected(normalizedPassportDetails.name)}`,
     `- **Passport Number:** ${formatDetected(normalizedPassportDetails.passportNumber)}`,
     `- **Nationality:** ${formatDetected(normalizedPassportDetails.nationality)}`,
+    `- **Issuing Country:** ${formatDetected(normalizedPassportDetails.issuingCountry)}`,
     `- **Sex:** ${formatDetected(normalizedPassportDetails.sex)}`,
     `- **Date of Birth:** ${
       normalizedPassportDetails.dateOfBirth
@@ -457,7 +468,8 @@ function resolveInitialChatState(
   restoredDraft,
   isEditRestart,
   incomingPassportData,
-  restoredPassportDetails
+  restoredPassportDetails,
+  incomingPassportIdentityLocked
 ) {
   if (isEditRestart) {
     let visaDetails = restoredDraft.visaDetails;
@@ -485,10 +497,12 @@ function resolveInitialChatState(
     const passportUploadCompleted =
       Boolean(restoredDraft.passportUploadCompleted) ||
       hasRequiredPassportDetails(passportDetails);
+    const passportIdentityLocked = Boolean(restoredDraft.passportIdentityLocked);
 
     return {
       visaDetails,
       passportDetails,
+      passportIdentityLocked,
       passportSkipped: restoredDraft.passportSkipped,
       passportUploadCompleted,
       stepIndex: 0,
@@ -499,6 +513,9 @@ function resolveInitialChatState(
   let passportUploadCompleted =
     Boolean(restoredDraft.passportUploadCompleted) ||
     hasRequiredPassportDetails(restoredPassportDetails);
+  const passportIdentityLocked =
+    Boolean(restoredDraft.passportIdentityLocked) ||
+    Boolean(incomingPassportIdentityLocked);
 
   if (incomingPassportData) {
     passportUploadCompleted = true;
@@ -520,14 +537,16 @@ function resolveInitialChatState(
       passportUploadIndex,
       restoredPassportDetails,
       passportSkippedForProgression,
-      passportUploadCompleted
+      passportUploadCompleted,
+      passportIdentityLocked
     );
   } else {
     stepIndex = advancePastCompletedSteps(
       stepIndex,
       restoredPassportDetails,
       passportSkippedForProgression,
-      passportUploadCompleted
+      passportUploadCompleted,
+      passportIdentityLocked
     );
   }
 
@@ -538,6 +557,7 @@ function resolveInitialChatState(
   return {
     visaDetails: restoredDraft.visaDetails,
     passportDetails: restoredPassportDetails,
+    passportIdentityLocked,
     passportSkipped: passportSkippedForProgression,
     passportUploadCompleted,
     stepIndex,
@@ -606,6 +626,9 @@ function ChatPage() {
   const isEditRestart = location.state?.edit === true;
   const restoredDraft = useMemo(() => loadDraft(), []);
   const incomingPassportData = location.state?.passportData;
+  const incomingPassportIdentityLocked = Boolean(
+    location.state?.passportIdentityLocked
+  );
   const initialChatState = useMemo(() => {
     const restoredPassportDetails = normalizePassportDetails({
       ...restoredDraft.passportDetails,
@@ -616,15 +639,24 @@ function ChatPage() {
       restoredDraft,
       isEditRestart,
       incomingPassportData,
-      restoredPassportDetails
+      restoredPassportDetails,
+      incomingPassportIdentityLocked
     );
-  }, [incomingPassportData, isEditRestart, restoredDraft]);
+  }, [
+    incomingPassportData,
+    incomingPassportIdentityLocked,
+    isEditRestart,
+    restoredDraft,
+  ]);
   const startStepIndex = initialChatState.stepIndex;
 
   const [stepIndex, setStepIndex] = useState(startStepIndex);
   const [visaDetails, setVisaDetails] = useState(initialChatState.visaDetails);
   const [passportDetails, setPassportDetails] = useState(
     initialChatState.passportDetails
+  );
+  const [passportIdentityLocked] = useState(
+    initialChatState.passportIdentityLocked
   );
   const [passportSkipped, setPassportSkipped] = useState(
     initialChatState.passportSkipped
@@ -674,6 +706,9 @@ function ChatPage() {
   const stepIndexRef = useRef(startStepIndex);
   const visaDetailsRef = useRef(initialChatState.visaDetails);
   const passportDetailsRef = useRef(initialChatState.passportDetails);
+  const passportIdentityLockedRef = useRef(
+    initialChatState.passportIdentityLocked
+  );
   const passportSkippedRef = useRef(initialChatState.passportSkipped);
   const passportUploadCompletedRef = useRef(
     initialChatState.passportUploadCompleted
@@ -716,6 +751,7 @@ function ChatPage() {
     const draft = {
       visaDetails,
       passportDetails: normalizePassportDetails(passportDetails),
+      passportIdentityLocked,
       passportSkipped,
       passportUploadCompleted:
         passportUploadCompleted || hasRequiredPassportDetails(passportDetails),
@@ -726,6 +762,7 @@ function ChatPage() {
   }, [
     visaDetails,
     passportDetails,
+    passportIdentityLocked,
     passportSkipped,
     passportUploadCompleted,
     stepIndex,
@@ -760,11 +797,11 @@ function ChatPage() {
 
   const editableChips = useMemo(
     () =>
-      getAnsweredEditableSteps(visaDetails, passportDetails).map((field) => ({
+      getAnsweredEditableSteps(visaDetails).map((field) => ({
         ...field,
         label: EDIT_CHIP_LABELS[field.key] || field.label,
       })),
-    [visaDetails, passportDetails]
+    [visaDetails]
   );
 
   const handleEditChipClick = useCallback(
@@ -915,7 +952,8 @@ function ChatPage() {
       currentStepIndex,
       nextPassportDetails,
       nextPassportSkipped,
-      nextPassportUploadCompleted
+      nextPassportUploadCompleted,
+      passportIdentityLockedRef.current
     );
 
     debugChatWorkflow("next step selected", {
@@ -1105,7 +1143,8 @@ function ChatPage() {
             activeStepIndex,
             normalizedNextPassportDetails,
             passportSkippedRef.current,
-            passportUploadCompletedRef.current
+            passportUploadCompletedRef.current,
+            passportIdentityLockedRef.current
           );
 
         editingStepRef.current = null;

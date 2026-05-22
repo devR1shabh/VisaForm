@@ -98,6 +98,7 @@ function UploadPassport() {
       navigate("/form", {
         state: {
           passportData: normalizePassportDetails(response.data.passportData),
+          passportIdentityLocked: true,
         },
       });
     } catch (error) {
@@ -116,6 +117,7 @@ function UploadPassport() {
     navigate("/form", {
       state: {
         passportData: emptyPassportData,
+        passportIdentityLocked: false,
         extractionError:
           "Passport details were not detected. Please enter or confirm the information manually.",
       },

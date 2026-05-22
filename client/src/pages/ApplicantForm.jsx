@@ -29,6 +29,7 @@ function ApplicantForm() {
   const navigate = useNavigate();
   const passportData = normalizePassportDetails(location.state?.passportData || {});
   const extractionError = location.state?.extractionError || "";
+  const passportIdentityLocked = Boolean(location.state?.passportIdentityLocked);
 
   const [formData, setFormData] = useState({
     name: passportData.name || passportData.fullName || "",
@@ -79,6 +80,7 @@ function ApplicantForm() {
     navigate("/chat", {
       state: {
         passportData: normalizePassportDetails(cleanedFormData),
+        passportIdentityLocked,
       },
     });
   };
@@ -122,6 +124,7 @@ function ApplicantForm() {
                     name="name"
                     value={formData.name}
                     onChange={handleChange}
+                    readOnly={passportIdentityLocked}
                     placeholder="Not Detected"
                   />
                 </label>
@@ -136,6 +139,7 @@ function ApplicantForm() {
                     name="passportNumber"
                     value={formData.passportNumber}
                     onChange={handleChange}
+                    readOnly={passportIdentityLocked}
                     placeholder="Not Detected"
                   />
                 </label>
@@ -149,6 +153,7 @@ function ApplicantForm() {
                     name="nationality"
                     value={formData.nationality}
                     onChange={handleChange}
+                    readOnly={passportIdentityLocked}
                     placeholder="Not Detected"
                   />
                 </label>
@@ -162,6 +167,7 @@ function ApplicantForm() {
                     name="issuingCountry"
                     value={formData.issuingCountry}
                     onChange={handleChange}
+                    readOnly={passportIdentityLocked}
                     placeholder="Not Detected"
                   />
                 </label>
@@ -174,6 +180,7 @@ function ApplicantForm() {
                     name="sex"
                     value={formData.sex}
                     onChange={handleChange}
+                    disabled={passportIdentityLocked}
                   >
                     <option value="">Select Sex</option>
                     <option value="Male">Male</option>
@@ -192,6 +199,7 @@ function ApplicantForm() {
                     name="dateOfBirth"
                     value={formData.dateOfBirth}
                     onChange={handleChange}
+                    readOnly={passportIdentityLocked}
                   />
                 </label>
 

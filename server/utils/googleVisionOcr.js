@@ -73,7 +73,7 @@ async function extractPassportOcr(images) {
       fullText,
       mrzText,
       lowerMrzText,
-      ...rotatedTexts,
+      ...rotatedTexts
     ]
       .filter(Boolean)
       .join("\n"),

@@ -1,74 +1,3 @@
-const countryNames = {
-  AFG: "Afghanistan",
-  AGO: "Angola",
-  ALB: "Albania",
-  ARE: "United Arab Emirates",
-  ARG: "Argentina",
-  ARM: "Armenia",
-  AUS: "Australia",
-  AUT: "Austria",
-  AZE: "Azerbaijan",
-  BEL: "Belgium",
-  BGD: "Bangladesh",
-  BGR: "Bulgaria",
-  BHR: "Bahrain",
-  BRA: "Brazil",
-  CAN: "Canada",
-  CHE: "Switzerland",
-  CHL: "Chile",
-  CHN: "China",
-  COL: "Colombia",
-  CZE: "Czech Republic",
-  DEU: "Germany",
-  DNK: "Denmark",
-  EGY: "Egypt",
-  ESP: "Spain",
-  FIN: "Finland",
-  FRA: "France",
-  GBR: "United Kingdom",
-  GRC: "Greece",
-  HKG: "Hong Kong",
-  HUN: "Hungary",
-  IDN: "Indonesia",
-  IND: "India",
-  IRL: "Ireland",
-  IRN: "Iran",
-  IRQ: "Iraq",
-  ISR: "Israel",
-  ITA: "Italy",
-  JPN: "Japan",
-  KAZ: "Kazakhstan",
-  KEN: "Kenya",
-  KOR: "South Korea",
-  KWT: "Kuwait",
-  LBN: "Lebanon",
-  LKA: "Sri Lanka",
-  MEX: "Mexico",
-  MYS: "Malaysia",
-  NGA: "Nigeria",
-  NLD: "Netherlands",
-  NOR: "Norway",
-  NPL: "Nepal",
-  NZL: "New Zealand",
-  OMN: "Oman",
-  PAK: "Pakistan",
-  PHL: "Philippines",
-  POL: "Poland",
-  PRT: "Portugal",
-  QAT: "Qatar",
-  ROU: "Romania",
-  RUS: "Russia",
-  SAU: "Saudi Arabia",
-  SGP: "Singapore",
-  SWE: "Sweden",
-  THA: "Thailand",
-  TUR: "Turkey",
-  UKR: "Ukraine",
-  USA: "United States",
-  VNM: "Vietnam",
-  ZAF: "South Africa",
-};
-
 function emptyPassportData() {
   return {
     fullName: "",
@@ -86,9 +15,11 @@ function emptyPassportData() {
 function cleanOcrLine(line = "") {
   return String(line)
     .toUpperCase()
-    .replace(/[«‹〈＜]/g, "<")
-    .replace(/[|]/g, "I")
-    .replace(/[^\w< /:.,-]/g, " ")
+    .replace(/[\u00ab\u2039\u3008\uff1c]/g, "<")
+    .replace(/[({\[]/g, "<")
+    .replace(/[)}\]]/g, "<")
+    .replace(/[|!]/g, "I")
+    .replace(/[^\w< /:.,;-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -104,50 +35,6 @@ function getLines(text = "") {
     .split(/\r?\n/)
     .map(cleanOcrLine)
     .filter(Boolean);
-}
-
-function hasMrzShape(line = "") {
-  const fillerCount = (line.match(/</g) || []).length;
-
-  return line.length >= 20 && (fillerCount >= 2 || /^[A-Z0-9<]{30,}$/.test(line));
-}
-
-function buildMrzCandidates(text = "") {
-  const lines = getLines(text).map(normalizeMrzLine).filter(hasMrzShape);
-  const candidates = [];
-
-  for (let index = 0; index < lines.length - 1; index += 1) {
-    const firstOptions = [lines[index], `${lines[index]}${lines[index + 1]}`];
-
-    firstOptions.forEach((first) => {
-      if (!first.startsWith("P<") || first.length < 30) return;
-
-      for (let next = index + 1; next <= Math.min(index + 3, lines.length - 1); next += 1) {
-        const second = lines[next];
-        if (second.startsWith("P<") || second.length < 30) return;
-
-        candidates.push([
-          first.padEnd(44, "<").slice(0, 44),
-          second.padEnd(44, "<").slice(0, 44),
-        ]);
-      }
-    });
-  }
-
-  const compactText = normalizeMrzLine(text);
-  const compactMatch = compactText.match(/(P<[A-Z0-9<]{42})([A-Z0-9<]{44})/);
-
-  if (compactMatch) {
-    candidates.push([compactMatch[1], compactMatch[2]]);
-  }
-
-  return candidates;
-}
-
-function countryName(code = "") {
-  const normalizedCode = normalizeAlphaField(code).replace(/</g, "");
-
-  return countryNames[normalizedCode] || normalizedCode;
 }
 
 function normalizeAlphaField(value = "") {
@@ -169,6 +56,138 @@ function normalizeDigitField(value = "") {
     .replace(/G/g, "6")
     .replace(/B/g, "8")
     .replace(/[^0-9]/g, "");
+}
+
+function normalizePassportNumber(value = "") {
+  return String(value).replace(/[^A-Z0-9<]/g, "<");
+}
+
+function hasMrzShape(line = "") {
+  const fillerCount = (line.match(/</g) || []).length;
+
+  return (
+    line.length >= 20 &&
+    line.length <= 60 &&
+    (fillerCount >= 1 || /^[A-Z0-9<]{30,}$/.test(line))
+  );
+}
+
+function normalizeFirstLine(line = "") {
+  const padded = normalizeMrzLine(line).padEnd(44, "<").slice(0, 44);
+  const issuingCountry = normalizeAlphaField(padded.slice(2, 5)).padEnd(3, "<");
+  const names = normalizeAlphaField(padded.slice(5)).padEnd(39, "<");
+
+  return `P<${issuingCountry}${names}`.slice(0, 44);
+}
+
+function normalizeSecondLine(line = "") {
+  const padded = normalizeMrzLine(line).padEnd(44, "<").slice(0, 44);
+  const passportNumber = normalizePassportNumber(padded.slice(0, 9));
+  const passportCheck = normalizeDigitField(padded.charAt(9)) || padded.charAt(9);
+  const nationality = normalizeAlphaField(padded.slice(10, 13)).padEnd(3, "<");
+  const birthDate = normalizeDigitField(padded.slice(13, 19)).padEnd(6, "0");
+  const birthCheck = normalizeDigitField(padded.charAt(19)) || padded.charAt(19);
+  const sex = normalizeAlphaField(padded.charAt(20)).charAt(0) || "<";
+  const expiryDate = normalizeDigitField(padded.slice(21, 27)).padEnd(6, "0");
+  const expiryCheck = normalizeDigitField(padded.charAt(27)) || padded.charAt(27);
+  const optionalData = padded.slice(28, 43).replace(/[^A-Z0-9<]/g, "<");
+  const compositeCheck = normalizeDigitField(padded.charAt(43)) || padded.charAt(43);
+
+  return [
+    passportNumber,
+    passportCheck,
+    nationality,
+    birthDate,
+    birthCheck,
+    sex,
+    expiryDate,
+    expiryCheck,
+    optionalData,
+    compositeCheck,
+  ].join("").slice(0, 44);
+}
+
+function splitLongMrzLine(line = "") {
+  const start = line.indexOf("P<");
+
+  if (start === -1) return [];
+
+  const compact = line.slice(start);
+  if (compact.length < 80) return [];
+
+  return [compact.slice(0, 44), compact.slice(44, 88)];
+}
+
+function addCandidate(candidates, first, second) {
+  if (!first || !second) return;
+
+  const firstStart = first.indexOf("P<");
+  if (firstStart === -1) return;
+
+  const firstLine = first.slice(firstStart);
+  if (firstLine.length < 30 || second.length < 30 || second.startsWith("P<")) {
+    return;
+  }
+
+  candidates.push([
+    normalizeFirstLine(firstLine),
+    normalizeSecondLine(second),
+  ]);
+}
+
+function buildMrzCandidates(text = "") {
+  const normalizedLines = getLines(text).map(normalizeMrzLine).filter(Boolean);
+  const lines = [];
+
+  normalizedLines.forEach((line) => {
+    const split = splitLongMrzLine(line);
+
+    if (split.length) {
+      lines.push(...split);
+    } else if (hasMrzShape(line)) {
+      lines.push(line);
+    }
+  });
+
+  const candidates = [];
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const firstOptions = [
+      lines[index],
+      `${lines[index]}${lines[index + 1] || ""}`,
+      `${lines[index]}${lines[index + 1] || ""}${lines[index + 2] || ""}`,
+    ];
+
+    firstOptions.forEach((first) => {
+      for (
+        let next = index + 1;
+        next <= Math.min(index + 4, lines.length - 1);
+        next += 1
+      ) {
+        [
+          lines[next],
+          `${lines[next]}${lines[next + 1] || ""}`,
+          `${lines[next]}${lines[next + 1] || ""}${lines[next + 2] || ""}`,
+        ].forEach((second) => addCandidate(candidates, first, second));
+      }
+    });
+  }
+
+  const compactText = normalizeMrzLine(text);
+  const compactMatch = compactText.match(/(P<[A-Z0-9<]{42})([A-Z0-9<]{44})/);
+
+  if (compactMatch) {
+    candidates.push([
+      normalizeFirstLine(compactMatch[1]),
+      normalizeSecondLine(compactMatch[2]),
+    ]);
+  }
+
+  return candidates;
+}
+
+function countryName(code = "") {
+  return normalizeAlphaField(code).replace(/</g, "");
 }
 
 function mrzCharValue(character) {
@@ -244,7 +263,7 @@ function parseName(firstLine = "") {
   const nameSection = firstLine.slice(5).replace(/<+$/g, "");
   const [surname = "", given = ""] = nameSection.split("<<");
 
-  return [surname, given]
+  return [given, surname]
     .join(" ")
     .replace(/</g, " ")
     .split(/\s+/)
@@ -295,9 +314,17 @@ function parseCandidate(firstLine, secondLine) {
     passportData.expiryDate,
   ].filter(Boolean).length;
   const checkScore = Object.values(checks).filter(Boolean).length;
+  const hasRequiredMrzFields =
+    passportData.fullName &&
+    passportData.passportNumber &&
+    /^[A-Z]{3}$/.test(passportData.nationality) &&
+    /^[A-Z]{3}$/.test(passportData.issuingCountry) &&
+    passportData.sex &&
+    passportData.dateOfBirth &&
+    passportData.expiryDate;
 
   return {
-    success: fieldScore >= 2,
+    success: Boolean(hasRequiredMrzFields),
     confidence: Math.round(((fieldScore / 7) * 0.55 + (checkScore / 4) * 0.45) * 100),
     checks,
     mrzLines: [firstLine, secondLine],
@@ -324,104 +351,8 @@ function parseMrz(text = "") {
   return best;
 }
 
-function findLabelValue(lines, labelPattern) {
-  const index = lines.findIndex((line) => labelPattern.test(line));
-
-  if (index === -1) return "";
-
-  const sameLine = lines[index].replace(labelPattern, "").replace(/^[:/ .-]+/, "").trim();
-  if (sameLine) return sameLine;
-
-  return lines[index + 1] || "";
-}
-
-function normalizeFallbackSex(value = "") {
-  const cleanedValue = cleanOcrLine(value);
-
-  if (/\bFEMALE\b/.test(cleanedValue) || cleanedValue === "F") return "F";
-  if (/\bMALE\b/.test(cleanedValue) || cleanedValue === "M") return "M";
-  return "";
-}
-
-function parseOcrFallback(text = "") {
-  const lines = getLines(text);
-  const passportData = emptyPassportData();
-  const passportLabelValue = findLabelValue(lines, /PASSPORT\s*(NO\.?|NUMBER)|DOCUMENT\s*(NO\.?|NUMBER)/);
-  const passportMatch =
-    passportLabelValue.match(/\b[A-Z0-9]{6,10}\b/) ||
-    String(text).toUpperCase().match(/\b[A-Z][A-Z0-9]{5,9}\b/);
-
-  passportData.passportNumber = passportMatch?.[0] || "";
-  passportData.fullName = findLabelValue(lines, /SURNAME\s+GIVEN\s+NAMES?|GIVEN\s+NAMES?|FULL\s+NAME|NAME/)
-    .replace(/[^A-Z ]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  passportData.nationality = countryName(findLabelValue(lines, /NATIONALITY/).slice(0, 3));
-  passportData.issuingCountry = countryName(findLabelValue(lines, /ISSUING\s+COUNTRY|AUTHORITY|CODE/).slice(0, 3));
-  passportData.sex = normalizeFallbackSex(findLabelValue(lines, /^SEX\b|GENDER/));
-  passportData.dateOfBirth = parseLooseDate(findLabelValue(lines, /DATE\s+OF\s+BIRTH|DOB|BIRTH\s+DATE/), "past");
-  passportData.expiryDate = parseLooseDate(findLabelValue(lines, /DATE\s+OF\s+EXPIRY|EXPIRY\s+DATE|EXPIRES/), "future");
-  passportData.name = passportData.fullName;
-  passportData.gender = sexLabel(passportData.sex);
-
-  const populated = Object.values({
-    fullName: passportData.fullName,
-    passportNumber: passportData.passportNumber,
-    nationality: passportData.nationality,
-    issuingCountry: passportData.issuingCountry,
-    sex: passportData.sex,
-    dateOfBirth: passportData.dateOfBirth,
-    expiryDate: passportData.expiryDate,
-  }).filter(Boolean).length;
-
-  return {
-    success: populated >= 2,
-    confidence: Math.round((populated / 7) * 45),
-    passportData,
-  };
-}
-
-function parseLooseDate(value = "", type = "past") {
-  const match = String(value).match(/\b(\d{1,4})[ ./-](\d{1,2})[ ./-](\d{1,4})\b/);
-
-  if (!match) return "";
-
-  let first = match[1];
-  const month = match[2];
-  let last = match[3];
-
-  if (first.length === 4) {
-    return validateDate(first, month, last);
-  }
-
-  if (last.length === 2) {
-    const yy = Number(last);
-    const currentYY = new Date().getFullYear() % 100;
-    last = `${type === "future" || yy <= currentYY + 10 ? "20" : "19"}${last}`;
-  }
-
-  return validateDate(last, month, first);
-}
-
-function validateDate(year, month, day) {
-  const formatted = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-  const date = new Date(`${formatted}T00:00:00Z`);
-
-  if (
-    Number.isNaN(date.getTime()) ||
-    date.getUTCFullYear() !== Number(year) ||
-    date.getUTCMonth() + 1 !== Number(month) ||
-    date.getUTCDate() !== Number(day)
-  ) {
-    return "";
-  }
-
-  return formatted;
-}
-
 module.exports = {
   emptyPassportData,
   parseMrz,
-  parseOcrFallback,
   sexLabel,
 };

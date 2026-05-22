@@ -1,11 +1,10 @@
 const express = require("express");
 
 const { buildPassportImages } = require("../utils/passportPreprocess");
-const { extractPassportOcr } = require("../utils/googleVisionOcr");
+const { extractTextFromImage } = require("../utils/ocrSpace");
 const {
   emptyPassportData,
   parseMrz,
-  parseOcrFallback,
   sexLabel,
 } = require("../utils/mrzParser");
 
@@ -49,6 +48,26 @@ function responseData(passportData = {}) {
   };
 }
 
+async function extractPassportOcr(images) {
+  const ocrInputs = [
+    images.mrzImage,
+    images.lowerMrzImage,
+    images.fullImage,
+    ...(images.rotatedFullImages || []),
+  ].filter(Boolean);
+
+  const texts = [];
+
+  for (const imageBuffer of ocrInputs) {
+    texts.push(await extractTextFromImage(imageBuffer));
+  }
+
+  return {
+    texts,
+    combinedText: texts.filter(Boolean).join("\n"),
+  };
+}
+
 router.post("/extract-passport", async (req, res) => {
   try {
     const { imageBase64 } = req.body;
@@ -65,24 +84,17 @@ router.post("/extract-passport", async (req, res) => {
     const imageBuffer = decodeBase64Image(imageBase64);
     const processedImages = await buildPassportImages(imageBuffer);
     const ocrResult = await extractPassportOcr(processedImages);
-    console.log("[api/passport] Google Vision OCR completed", {
-      fullTextLength: ocrResult.fullText.length,
-      mrzTextLength: ocrResult.mrzText.length,
-      lowerMrzTextLength: ocrResult.lowerMrzText.length,
-      rotatedTextLengths: ocrResult.rotatedTexts.map((text) => text.length),
+    console.log("[api/passport] OCR.space OCR completed", {
+      textLengths: ocrResult.texts.map((text) => text.length),
     });
 
     const mrzResult = parseMrz(ocrResult.combinedText);
-    const selectedResult = mrzResult.success
-      ? mrzResult
-      : parseOcrFallback(ocrResult.combinedText);
-    const passportData = compatiblePassportData(selectedResult.passportData);
+    const passportData = compatiblePassportData(mrzResult.passportData);
     const data = responseData(passportData);
 
-    if (!selectedResult.success) {
+    if (!mrzResult.success) {
       console.log("[api/passport] MRZ not detected clearly", {
         mrzConfidence: mrzResult.confidence,
-        fallbackConfidence: selectedResult.confidence,
         mrzLines: mrzResult.mrzLines || [],
       });
 
@@ -95,9 +107,9 @@ router.post("/extract-passport", async (req, res) => {
     }
 
     console.log("[api/passport] passport extraction completed", {
-      source: mrzResult.success ? "mrz" : "ocr-fallback",
-      confidence: selectedResult.confidence,
-      checks: selectedResult.checks || {},
+      source: "mrz",
+      confidence: mrzResult.confidence,
+      checks: mrzResult.checks || {},
       mrzLines: mrzResult.mrzLines || [],
       fields: data,
     });
@@ -108,7 +120,7 @@ router.post("/extract-passport", async (req, res) => {
       passportData,
     });
   } catch (error) {
-    console.log("[api/passport] Vision OCR failed:", error.message);
+    console.log("[api/passport] OCR.space OCR failed:", error.message);
 
     return res.json({
       success: false,

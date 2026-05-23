@@ -4,6 +4,12 @@ An AI-powered visa application assistant that helps users complete visa forms th
 
 ---
 
+# Live Demo
+
+https://visa-form-mu.vercel.app/
+
+---
+
 # Features
 
 ## AI-Assisted Conversational Workflow
@@ -332,12 +338,6 @@ GEMINI_API_KEY=your_gemini_api_key
 - MERN stack implementation
 - Responsive user interface
 - Real-world workflow simulation
-
----
-
-# Live Demo
-
-https://visa-form-mu.vercel.app/
 
 ---
 

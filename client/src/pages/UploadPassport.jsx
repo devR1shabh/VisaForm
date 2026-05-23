@@ -181,6 +181,31 @@ function UploadPassport() {
                 className="hidden"
               />
 
+              <div className="mt-6 grid gap-4 rounded-3xl border border-slate-200 bg-slate-50/80 p-5 sm:grid-cols-2">
+                <div>
+                  <h2 className="text-sm font-bold text-slate-950">
+                    Supported Passport Uploads
+                  </h2>
+                  <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-600">
+                    <li>ICAO-compliant machine-readable passports (MRZ)</li>
+                    <li>Standard international passport formats</li>
+                    <li>Mobile and desktop uploaded passport images</li>
+                    <li>Clear passport biodata pages with visible MRZ lines</li>
+                  </ul>
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-slate-950">
+                    Recommended Image Quality
+                  </h2>
+                  <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-600">
+                    <li>Avoid blur and glare</li>
+                    <li>Ensure MRZ is fully visible</li>
+                    <li>Use clear lighting</li>
+                    <li>Avoid cropped passport images</li>
+                  </ul>
+                </div>
+              </div>
+
               {status && !isExtracting && (
                 <div className="mt-5">
                   <StatusBadge tone="emerald" icon={Sparkles}>{status}</StatusBadge>

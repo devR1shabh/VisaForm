@@ -229,17 +229,17 @@ function ApplicantForm() {
             </Card>
 
             <Card className="h-fit bg-slate-900 text-white">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/10">
-                <Bot className="h-6 w-6 text-emerald-200" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/10">
+                <Bot className="h-6 w-6 text-emerald-100" />
               </div>
-              <h2 className="mt-5 text-xl font-bold">
-                AI helper
+              <h2 className="mt-5 text-xl font-bold text-white">
+                Ready for Review
               </h2>
-              <p className="mt-3 text-sm leading-6 text-slate-200">
-                Please verify your extracted details before continuing. Missing fields are okay for this demo, but incorrect fields should be corrected now.
+              <p className="mt-4 text-sm font-medium leading-7 text-slate-100">
+                Your passport details have been extracted successfully.
               </p>
-              <div className="mt-6 rounded-2xl bg-white/10 p-4 text-sm text-slate-100">
-                The assistant will use these confirmed passport details when saving the final application and generating the PDF.
+              <div className="mt-5 rounded-2xl bg-white/[0.12] p-4 text-sm font-medium leading-6 text-white ring-1 ring-white/10">
+                Please verify the information before proceeding to the visa application assistant.
               </div>
             </Card>
           </div>
